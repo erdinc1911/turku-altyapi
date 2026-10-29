@@ -128,6 +128,123 @@ def _pad_root(pc):
     return root - 12 if root > 56 else root
 
 
+# ---------------------------------------------------------------- armoni (bas yürüyüşü)
+
+# bas kökü ile ezgi notası arasındaki aralığın uyum puanı (yarım ses -> puan)
+FIT = {0: 1.0, 7: 0.7, 3: 0.55, 4: 0.55, 8: 0.3, 9: 0.3, 5: 0.25, 10: 0.25,
+       2: -0.1, 1: -0.5, 11: -0.4, 6: -0.4}
+ROOT_CANDIDATES = [0, 5, 7, 10, 3, 8, 2]  # karar, 4., 5., 7., 3., 6., 2. derece
+
+
+def _scale_from_chroma(chroma, tonic):
+    """Kaydın en çok kullanılan 7 perde sınıfı (karara göre), karar her zaman içinde."""
+    c = np.asarray(chroma, dtype=float)
+    rel = np.roll(c, -tonic)
+    top = set(int(i) for i in np.argsort(rel)[::-1][:7])
+    top.add(0)
+    return top
+
+
+def _bar_roots(bars, clock, melody, tonic, scale):
+    """Her ölçü için ezgiye en uyan bas kökünü seçer (karara göre yarım ses)."""
+    cands = [r for r in ROOT_CANDIDATES if r in scale] or [0]
+    notes = np.array(melody, dtype=float) if melody else np.zeros((0, 3))
+    roots, prev = [], 0
+    for k, bar in enumerate(bars):
+        t0, t1 = clock.time(bar[0]), clock.time(bar[-1] + 1)
+        if len(notes):
+            sel = (notes[:, 0] < t1) & (notes[:, 0] + notes[:, 1] > t0)
+            seg = notes[sel]
+        else:
+            seg = notes
+        if len(seg) == 0:
+            roots.append(prev)
+            continue
+        w = np.minimum(seg[:, 0] + seg[:, 1], t1) - np.maximum(seg[:, 0], t0)
+        pcs = (seg[:, 2].astype(int) - tonic) % 12
+        best, best_s = prev, -9.0
+        for r in cands:
+            fit = sum(wi * FIT[(pc - r) % 12] for wi, pc in zip(w, pcs)) / max(w.sum(), 1e-6)
+            bias = 0.25 if r == 0 else (0.05 if r == 7 else 0.0)
+            if k % 4 == 3:
+                bias += 0.15 if r == 0 else 0.0  # 4 ölçülük cümle sonu kararda dinlensin
+            if r == prev:
+                bias += 0.1  # gereksiz kök değişimini önle
+            if fit + bias > best_s:
+                best, best_s = r, fit + bias
+        roots.append(best)
+        prev = best
+    return roots
+
+
+def _approach(next_root, scale):
+    """Bir sonraki köke alttan (dizi içinden) yaklaşan geçiş sesi."""
+    for step in range(1, 4):
+        if (next_root - step) % 12 in scale:
+            return next_root - step
+    return next_root - 1
+
+
+# ---------------------------------------------------------------- bendir (iki el)
+
+# (vuruş içi konum, D=düm merkez / T=tek kenar / k=parmak dolgusu, hız); her stil için A ve B çeşitlemesi
+BENDIR_PATTERNS = {
+    2: {
+        "sade": [[(0, "D", 1.0), (1, "T", 0.8), (1.5, "k", 0.3)],
+                 [(0, "D", 1.0), (1, "T", 0.75), (1.75, "k", 0.3)]],
+        "dengeli": [[(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.85), (1.5, "k", 0.4), (1.75, "k", 0.3)],
+                    [(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (1.5, "D", 0.6), (1.75, "k", 0.3)]],
+        "zengin": [[(0, "D", 1.0), (0.25, "k", 0.3), (0.5, "k", 0.4), (1, "T", 0.9), (1.25, "k", 0.3),
+                    (1.5, "D", 0.7), (1.75, "k", 0.35)],
+                   [(0, "D", 1.0), (0.5, "k", 0.4), (0.75, "k", 0.3), (1, "T", 0.9), (1.5, "k", 0.45),
+                    (1.75, "T", 0.5)]],
+    },
+    3: {
+        "sade": [[(0, "D", 1.0), (1, "T", 0.7), (2, "T", 0.7)], [(0, "D", 1.0), (1.5, "k", 0.3), (2, "T", 0.75)]],
+        "dengeli": [[(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (1.5, "k", 0.35), (2, "T", 0.8),
+                     (2.5, "k", 0.35)],
+                    [(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (2, "D", 0.6), (2.5, "k", 0.35)]],
+        "zengin": [[(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.85), (1.25, "k", 0.3), (1.5, "k", 0.4),
+                    (2, "T", 0.85), (2.5, "k", 0.4), (2.75, "k", 0.3)],
+                   [(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.85), (1.5, "D", 0.6), (2, "T", 0.85),
+                    (2.5, "k", 0.4)]],
+    },
+    4: {
+        "sade": [[(0, "D", 1.0), (2, "T", 0.8), (3.5, "k", 0.3)], [(0, "D", 1.0), (1.5, "k", 0.3), (2, "T", 0.8)]],
+        "dengeli": [[(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (1.5, "k", 0.35), (2, "D", 0.85),
+                     (2.5, "k", 0.35), (3, "T", 0.85), (3.5, "k", 0.35)],
+                    [(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (2, "D", 0.8), (2.5, "D", 0.55),
+                     (3, "T", 0.85), (3.5, "k", 0.4), (3.75, "k", 0.3)]],
+        "zengin": [[(0, "D", 1.0), (0.25, "k", 0.3), (0.5, "k", 0.4), (1, "T", 0.85), (1.5, "k", 0.4),
+                    (2, "D", 0.9), (2.25, "k", 0.3), (2.5, "k", 0.4), (3, "T", 0.9), (3.5, "k", 0.45),
+                    (3.75, "k", 0.35)],
+                   [(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.85), (1.25, "k", 0.3), (1.5, "D", 0.6),
+                    (2, "D", 0.9), (2.5, "k", 0.4), (3, "T", 0.9), (3.25, "k", 0.35), (3.5, "T", 0.6)]],
+    },
+}
+_KIND = {"D": "dum", "T": "tek", "k": "ka"}
+
+
+def _bendir_part(bars, levels, bpb, density, clock, rng):
+    ev = []
+    for k, (bar, level) in enumerate(zip(bars, levels)):
+        style = LEVEL_PATTERN[density][level]
+        variants = BENDIR_PATTERNS[bpb][style]
+        pat = list(variants[k % 2])
+        b0 = bar[0]
+        fill = (k % 4 == 3) and level >= 1 and k < len(bars) - 1
+        if fill:  # 4 ölçüde bir son vuruşta kısa geçiş (kenar vuruşları, giderek güçlenen)
+            last = bpb - 1
+            pat = [p for p in pat if p[0] < last]
+            pat += [(last, "T", 0.55), (last + 0.25, "k", 0.45), (last + 0.5, "T", 0.7), (last + 0.75, "T", 0.85)]
+        for pos, kind, v in pat:
+            vv = v * (0.82 + 0.1 * level) * rng.uniform(0.88, 1.1)
+            ev.append({"t": clock.time(b0 + pos) + rng.normal(0, 0.005), "kind": _KIND[kind],
+                       "vel": float(np.clip(vv, 0.05, 1.0))})
+    ev.append({"t": clock.time(bars[-1][-1] + 1), "kind": "dum", "vel": 1.0})
+    return ev
+
+
 def _drone_runs(bars, levels, min_level, clock, notes, base_vel):
     """Seviyesi yeterli ardışık ölçüleri tek uzun "dem" sesi olarak birleştirir."""
     ev = []
@@ -201,7 +318,8 @@ def _smooth_melody(melody, min_dur):
     """Çok kısa notaları (süsleme / geçiş / analiz hatası) bir önceki notaya katar."""
     out = []
     for t, d, m in melody:
-        if out and (d < min_dur or m == out[-1][2]) and t - (out[-1][0] + out[-1][1]) < 0.12:
+        if out and (d < min_dur or (m == out[-1][2] and t - (out[-1][0] + out[-1][1]) < 0.06)) \
+                and t - (out[-1][0] + out[-1][1]) < 0.12:
             out[-1][1] = t + d - out[-1][0]
             continue
         if d < min_dur:
@@ -220,7 +338,7 @@ def _ney_part(melody, spans, rng):
     """Ney ezgiyi uzun ve bağlı (legato) çalar; kısa süslemeleri atlar."""
     ev = []
     prev = 78
-    for t, d, m in _smooth_melody(melody, 0.16):
+    for t, d, m in _smooth_melody(melody, 0.10):
         span = _in_spans(t, spans)
         if span is None:
             continue
@@ -229,7 +347,7 @@ def _ney_part(melody, spans, rng):
         dur = min(d, span[1] - t)
         if ev:
             gap = t - (ev[-1]["t"] + ev[-1]["dur"])
-            if ev[-1]["midi"] == note and gap < 0.25:
+            if ev[-1]["midi"] == note and gap < 0.06:
                 ev[-1]["dur"] = t + dur - ev[-1]["t"]
                 continue
             if 0 < gap < 0.45:
@@ -282,27 +400,49 @@ def arrange(an, settings):
 
     events = {}
 
+    scale = _scale_from_chroma(an.get("chroma", [1] * 12), tonic)
+    roots = _bar_roots(bars, clock, an.get("melody") or [], tonic, scale)
+
     if "bas" in instruments:
         root = _bass_root(tonic)
+
+        def bass_midi(rel):
+            m = root + rel
+            return m - 12 if m > 45 else m
+
         ev = []
-        for bar, level in zip(bars, levels):
-            pat = BASS_PATTERNS[bpb][LEVEL_PATTERN[density][level]]
+        for k, (bar, level) in enumerate(zip(bars, levels)):
+            style = LEVEL_PATTERN[density][level]
+            pat = BASS_PATTERNS[bpb][style]
             b0 = bar[0]
+            r = roots[k]
             for pos, dur, interval, v in pat:
                 t0 = clock.time(b0 + pos)
                 t1 = clock.time(b0 + pos + dur)
+                rel = r + interval
+                if interval == 7 and (r + 7) % 12 not in scale:
+                    rel = r  # beşli dizide yoksa kökü tekrarla
                 if ev and t0 - ev[-1]["t"] < BASS_MIN_GAP:
-                    # çok sık: yeni nota yerine öncekini uzat
                     ev[-1]["dur"] = max(ev[-1]["dur"], (t1 - ev[-1]["t"]) * 0.95)
                     continue
                 ev.append({"t": jitter(t0), "dur": max(0.05, (t1 - t0) * 0.95),
-                           "midi": root + interval, "vel": vel(v, level)})
+                           "midi": bass_midi(rel), "vel": vel(v, level)})
+            # kök değişecekse ölçünün son yarım vuruşunda geçiş sesi
+            if style != "sade" and k + 1 < len(bars) and roots[k + 1] != r:
+                ta = clock.time(b0 + bpb - 0.5)
+                if ev and ta - ev[-1]["t"] >= 0.25:
+                    ev[-1]["dur"] = min(ev[-1]["dur"], (ta - ev[-1]["t"]) * 0.95)
+                    ev.append({"t": jitter(ta), "dur": (clock.time(b0 + bpb) - ta) * 0.9,
+                               "midi": bass_midi(_approach(roots[k + 1], scale)), "vel": vel(0.65, level)})
         # bitiş: son ölçüden sonra uzun karar sesi
         end_t = clock.time(bars[-1][-1] + 1)
         ev.append({"t": end_t, "dur": 2.0 * clock.period, "midi": root, "vel": 0.85})
         events["bas"] = ev
 
-    for kit in ("bendir", "darbuka"):
+    if "bendir" in instruments:
+        events["bendir"] = _bendir_part(bars, levels, bpb, density, clock, rng)
+
+    for kit in ("darbuka",):
         if kit not in instruments:
             continue
         ev = []
@@ -345,8 +485,9 @@ def arrange(an, settings):
             eligible = level >= min_level
             if has_cura and has_ney:
                 # yoğun bölümlerde cura ritim tutar, sakin bölümlerde ney ezgiye eşlik eder
+                # cura ritim tuttuğu için ney ile çakışmaz: cura yoğun bölümlerde, ney her yerde
                 cura_on.append(eligible and level == 2)
-                if eligible and level < 2:
+                if eligible:
                     ney_spans.append((clock.time(bar[0]), clock.time(bar[-1] + 1)))
             else:
                 cura_on.append(eligible)

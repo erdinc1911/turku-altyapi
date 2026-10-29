@@ -240,3 +240,34 @@ def render_cura(events, n, sr, tuning, seed=1):
 def safe_peak(x, ceiling=0.95):
     p = float(np.abs(x).max()) if len(x) else 0.0
     return x * (ceiling / p) if p > ceiling else x
+
+
+# ---------------------------------------------------------------- yankı (oda)
+
+def _room_ir(sr, seconds, seed):
+    rng = np.random.default_rng(seed + 99)
+    n = int(seconds * sr)
+    t = np.arange(n, dtype=np.float32) / sr
+    ir = rng.standard_normal(n).astype(np.float32) * np.exp(-6.9 * t / seconds)
+    # yüksek frekanslar daha çabuk sönsün: kaba alçak geçiren (hareketli ortalama)
+    k = 6
+    ir = np.convolve(ir, np.ones(k, dtype=np.float32) / k, mode="same")
+    ir[: int(0.012 * sr)] = 0.0  # ilk yansımadan önceki boşluk (pre-delay)
+    return ir / np.sqrt(np.sum(ir ** 2))
+
+
+def reverb(x, sr, wet=0.3, seconds=1.8, seed=1):
+    """FFT tabanlı, parça parça (overlap-add) oda yankısı. Kuru sesle karıştırılmış döner."""
+    if wet <= 0 or len(x) == 0:
+        return x
+    ir = _room_ir(sr, seconds, seed)
+    block = 1 << 16
+    nfft = 1 << int(np.ceil(np.log2(block + len(ir) - 1)))
+    H = np.fft.rfft(ir, nfft)
+    out = np.zeros(len(x) + len(ir), dtype=np.float32)
+    for start in range(0, len(x), block):
+        seg = x[start:start + block]
+        y = np.fft.irfft(np.fft.rfft(seg, nfft) * H, nfft)[: len(seg) + len(ir) - 1]
+        out[start:start + len(y)] += y.astype(np.float32)
+    wet_sig = out[: len(x)] * 0.5
+    return ((1.0 - wet * 0.5) * x + wet * wet_sig).astype(np.float32)

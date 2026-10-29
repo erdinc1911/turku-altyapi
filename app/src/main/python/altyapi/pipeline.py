@@ -44,6 +44,10 @@ class _Progress:
             self.cb(val, msg)
 
 
+# çalgı başına oda yankısı oranı (ney doğal olarak odada sönerek kaybolur)
+REVERB = {"ney": 0.45, "yaylilar": 0.3, "org": 0.2, "cura": 0.18, "bendir": 0.12, "darbuka": 0.1, "bas": 0.0}
+
+
 def _path(project_dir, name):
     return os.path.join(project_dir, name)
 
@@ -88,7 +92,7 @@ def _render(project_dir, an, settings, progress):
         "yaylilar": (lambda e: synth.render_sampled(e, n, sr, tuning, "yaylilar", attack=0.35, release=0.6),
                      "Yaylılar çalınıyor"),
         "cura": (lambda e: synth.render_cura(e, n, sr, tuning, seed), "Cura çalınıyor"),
-        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.08, release=0.45),
+        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.08, release=0.9),
                 "Ney çalınıyor"),
     }
     keys = [k for k, _ in STEMS]
@@ -97,7 +101,10 @@ def _render(project_dir, an, settings, progress):
         path = _path(project_dir, key + ".wav")
         if ev.get(key):
             progress(10 + 85 * i / len(keys), msg)
-            audio = synth.safe_peak(fn(ev[key]))
+            audio = fn(ev[key])
+            if REVERB.get(key):
+                audio = synth.reverb(audio, sr, REVERB[key], seed=seed)
+            audio = synth.safe_peak(audio)
             wavio.write_wav(path, audio, sr)
             produced.append(key)
         elif os.path.exists(path):
