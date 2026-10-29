@@ -79,6 +79,31 @@
                 android:layout_height="wrap_content" android:text="Zengin" />
         </RadioGroup>
 
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:text="Ses rengi (isteğe bağlı)" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center_vertical" android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/refButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Beğendiğin bir kaydı referans seç" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/refClearButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Kaldır"
+                android:visibility="gone" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/refText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:alpha="0.7"
+            android:text="Seçersen altyapının ses rengi o kayda benzetilir. Kaydın sesi saklanmaz." />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/generateButton"
             android:layout_width="match_parent"

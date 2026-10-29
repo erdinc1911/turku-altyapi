@@ -17,7 +17,7 @@ import time
 
 import numpy as np
 
-from . import analysis, arrange, synth, wavio
+from . import analysis, arrange, synth, tone, wavio
 
 STEMS = [
     ("bas", "Bas"),
@@ -46,6 +46,10 @@ class _Progress:
 
 # çalgı başına oda yankısı oranı (ney doğal olarak odada sönerek kaybolur)
 REVERB = {"ney": 0.4, "yaylilar": 0.3, "org": 0.2, "cura": 0.18, "bendir": 0.12, "darbuka": 0.1, "bas": 0.0}
+
+
+# Uygulamadaki başlangıç mikser seviyeleri (Kotlin tarafıyla aynı); ses rengi eşlemede kullanılır
+DEFAULT_GAINS = {"bas": 0.9, "bendir": 1.0, "darbuka": 0.8, "org": 0.7, "yaylilar": 0.4, "cura": 0.55, "ney": 0.45}
 
 
 def _path(project_dir, name):
@@ -112,8 +116,38 @@ def _render(project_dir, an, settings, progress, out_dir=None):
         elif os.path.exists(path):
             os.remove(path)
 
+    ref = settings.get("ref_profile")
+    if ref and produced and os.path.exists(ref):
+        progress(96, "Ses rengi referansa benzetiliyor")
+        arr["tone"] = _match_tone(project_dir, out_dir, produced, ref, sr)
+
     progress(100, "Hazır")
     return arr, produced, round(time.time() - t0, 2)
+
+
+def _match_tone(project_dir, out_dir, produced, ref_json, sr):
+    with open(ref_json, encoding="utf-8") as f:
+        ref_db = json.load(f)["profile_db"]
+    cache = _path(project_dir, "source_bands.json")
+    if os.path.exists(cache):
+        with open(cache) as f:
+            src_e = json.load(f)
+    else:
+        x, _ = wavio.read_wav(_path(project_dir, "source.wav"))
+        src_e = tone.band_energy(x, sr).tolist()
+        with open(cache, "w") as f:
+            json.dump(src_e, f)
+    stems_e = 0.0
+    audio = {}
+    for key in produced:
+        x, _ = wavio.read_wav(_path(out_dir, key + ".wav"))
+        audio[key] = x[:, 0]
+        stems_e = stems_e + tone.band_energy(audio[key], sr) * DEFAULT_GAINS.get(key, 0.7) ** 2
+    gains = tone.eq_gains(ref_db, src_e, stems_e)
+    for key in produced:
+        y = synth.safe_peak(tone.apply_eq(audio[key], sr, gains))
+        wavio.write_wav(_path(out_dir, key + ".wav"), y, sr)
+    return {"gains_db": [round(float(g), 1) for g in gains], "text": tone.describe(gains)}
 
 
 def _summary(an, arr, produced, render_seconds, prefix=""):
@@ -133,6 +167,7 @@ def _summary(an, arr, produced, render_seconds, prefix=""):
         "analysis_seconds": an.get("analysis_seconds"),
         "render_seconds": render_seconds,
         "stems": [{"key": k, "name": names[k], "file": prefix + k + ".wav"} for k in produced],
+        "tone": arr.get("tone"),
     }, ensure_ascii=False)
 
 
@@ -194,3 +229,8 @@ def promote_variant(project_dir):
         os.replace(os.path.join(out, name), _path(project_dir, target))
     os.rmdir(out)
     return "ok"
+
+
+def reference_profile(wav_path, out_json):
+    """Referans kaydın frekans dengesini ölçüp kaydeder (ses saklanmaz)."""
+    return tone.reference_profile(wav_path, out_json)

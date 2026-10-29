@@ -108,6 +108,13 @@ def main():
     if os.path.exists(os.path.join(out, "ney.wav")):
         errors.append("seçilmeyen ney stemi silinmedi")
 
+    ref_json = os.path.join(out, "ref_profile.json")
+    pipeline.reference_profile(os.path.join(out, "source.wav"), ref_json)
+    st = json.loads(pipeline.run_arrange(out, json.dumps({"density": "dengeli", "ref_profile": ref_json})))
+    print("ses rengi:", st.get("tone"))
+    if not st.get("tone"):
+        errors.append("referans ses rengi uygulanmadı")
+
     v = json.loads(pipeline.run_variant(out, json.dumps({"density": "dengeli"})))
     print(v["variant_label"], [s["file"] for s in v["stems"]])
     if not all(s["file"].startswith("b/") for s in v["stems"]):

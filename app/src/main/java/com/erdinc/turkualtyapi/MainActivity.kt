@@ -86,6 +86,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private var refProfile: File? = null
+
+    private val pickRef = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) loadReference(uri)
+    }
+
     private val saveWav = registerForActivityResult(ActivityResultContracts.CreateDocument("audio/wav")) { uri ->
         if (uri != null) exportTo(uri)
     }
@@ -147,6 +153,13 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.licenseButton).setOnClickListener { showLicenses() }
         findViewById<Button>(R.id.abButton).setOnClickListener { startVariant() }
+        findViewById<Button>(R.id.refButton).setOnClickListener { pickRef.launch(arrayOf("audio/*", "video/*")) }
+        findViewById<Button>(R.id.refClearButton).setOnClickListener {
+            refProfile = null
+            getSharedPreferences("ayarlar", MODE_PRIVATE).edit().remove("ref_profile").remove("ref_name").apply()
+            showRefState(null)
+        }
+        restoreReference()
         findViewById<Button>(R.id.listenAButton).setOnClickListener { switchAB(false) }
         findViewById<Button>(R.id.listenBButton).setOnClickListener { switchAB(true) }
         findViewById<Button>(R.id.keepAButton).setOnClickListener { endAB(keepB = false) }
@@ -177,6 +190,7 @@ class MainActivity : AppCompatActivity() {
         o.put("instruments", inst)
         o.put("tempo_factor", tempoFactor)
         o.put("seed", seed)
+        refProfile?.let { if (it.exists()) o.put("ref_profile", it.absolutePath) }
         val t = tonicSpinner.selectedItemPosition
         if (t > 0) o.put("tonic_pc", t - 1)
         val m = meterSpinner.selectedItemPosition
@@ -330,6 +344,52 @@ class MainActivity : AppCompatActivity() {
         buildMixer()
     }
 
+    // ------------------------------------------------------------ referans kayıt (ses rengi)
+
+    private fun loadReference(uri: Uri) {
+        if (busy) return
+        val name = displayName(uri)
+        setBusy(true)
+        showProgress(0, "Referans kayıt inceleniyor")
+        Thread {
+            try {
+                val tmp = File(cacheDir, "referans.wav")
+                AudioDecoder.decodeToWav(this, uri, tmp) { pct ->
+                    runOnUiThread { showProgress(pct * 80 / 100, "Referans kayıt inceleniyor") }
+                }
+                val out = File(filesDir, "referans_profili.json")
+                Python.getInstance().getModule("altyapi.pipeline")
+                    .callAttr("reference_profile", tmp.absolutePath, out.absolutePath)
+                tmp.delete()  // kaydın sesi saklanmaz, yalnız frekans dengesi kalır
+                runOnUiThread {
+                    refProfile = out
+                    getSharedPreferences("ayarlar", MODE_PRIVATE).edit()
+                        .putString("ref_profile", out.absolutePath).putString("ref_name", name).apply()
+                    showRefState(name)
+                    setBusy(false)
+                    statusText.text = if (projectDir != null) "Referans hazır. Uygulamak için 'Yeniden üret'e bas."
+                        else "Referans hazır."
+                }
+            } catch (t: Throwable) {
+                runOnUiThread { setBusy(false); statusText.text = "Referans okunamadı: ${t.message}" }
+            }
+        }.start()
+    }
+
+    private fun restoreReference() {
+        val prefs = getSharedPreferences("ayarlar", MODE_PRIVATE)
+        val path = prefs.getString("ref_profile", null) ?: return
+        val f = File(path)
+        if (f.exists()) { refProfile = f; showRefState(prefs.getString("ref_name", "referans")) }
+    }
+
+    private fun showRefState(name: String?) {
+        findViewById<TextView>(R.id.refText).text = if (name == null)
+            "Seçersen altyapının ses rengi o kayda benzetilir. Kaydın sesi saklanmaz."
+        else "Referans: $name (altyapının ses rengi buna benzetilecek)"
+        findViewById<View>(R.id.refClearButton).visibility = if (name == null) View.GONE else View.VISIBLE
+    }
+
     /** Dinlenen versiyonun düğmesi dolu renkli, diğeri boş çerçeveli. */
     private fun styleListen(b: com.google.android.material.button.MaterialButton, active: Boolean) {
         val primary = com.google.android.material.color.MaterialColors.getColor(
@@ -396,6 +456,7 @@ class MainActivity : AppCompatActivity() {
         detectedTonic = s.optInt("tonic_pc", 0)
         val cents = s.optDouble("tuning_cents", 0.0)
         val quality = if (s.optString("quality") == "minor") "minör/uşşak benzeri" else "majör benzeri"
+        val toneText = s.optJSONObject("tone")?.optString("text")
         summaryText.text = buildString {
             append("Tempo: ${"%.0f".format(s.optDouble("bpm"))} vuruş/dk\n")
             append("Ölçü: ${s.optInt("beats_per_bar")} vuruş · ${s.optInt("bars")} ölçü\n")
@@ -403,6 +464,7 @@ class MainActivity : AppCompatActivity() {
             append("Akort: 440 Hz'e göre ${if (cents >= 0) "+" else ""}${"%.0f".format(cents)} sent ")
             append("(altyapı buna göre akort edildi)\n")
             append("Süre: ${"%.0f".format(s.optDouble("duration"))} sn")
+            if (!toneText.isNullOrEmpty()) append("\nSes rengi: referansa benzetildi ($toneText)")
         }
     }
 
