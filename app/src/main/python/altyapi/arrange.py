@@ -94,6 +94,8 @@ PERC_PATTERNS = {
     },
 }
 
+DEFAULT_INSTRUMENTS = ["bas", "bendir", "org", "cura", "ney"]
+
 LEVEL_PATTERN = {
     # (istenen yoğunluk, bölüm seviyesi) -> kullanılacak kalıp
     "sade": ["sade", "sade", "sade"],
@@ -126,9 +128,83 @@ def _pad_root(pc):
     return root - 12 if root > 56 else root
 
 
+def _drone_runs(bars, levels, min_level, clock, notes, base_vel):
+    """Seviyesi yeterli ardışık ölçüleri tek uzun "dem" sesi olarak birleştirir."""
+    ev = []
+    run_start, run_levels = None, []
+    for k, (bar, level) in enumerate(list(zip(bars, levels)) + [(None, -1)]):
+        active = bar is not None and level >= min_level
+        if active and run_start is None:
+            run_start, run_levels = k, []
+        if active:
+            run_levels.append(level)
+        if not active and run_start is not None:
+            t0 = clock.time(bars[run_start][0])
+            t1 = clock.time(bars[k - 1][-1] + 1)
+            v = base_vel + 0.12 * float(np.mean(run_levels))
+            for m in notes:
+                ev.append({"t": t0, "dur": t1 - t0, "midi": m, "vel": v})
+            run_start = None
+    return ev
+
+
+def _fold(midi, prev, lo, hi):
+    """Perde sınıfını korur, çalgı aralığında önceki notaya en yakın oktavı seçer."""
+    cands = [m for m in range(lo, hi + 1) if m % 12 == midi % 12]
+    return min(cands, key=lambda m: abs(m - prev))
+
+
+def _in_spans(t, spans):
+    for a, b in spans:
+        if a <= t < b:
+            return (a, b)
+    return None
+
+
+def _cura_part(melody, spans, clock, rng):
+    """Cura ezgiyi bir oktav tizde, sekizlik mızrap vuruşlarıyla çalar."""
+    ev = []
+    prev = 69
+    eighth = clock.period / 2
+    for t, d, m in melody:
+        span = _in_spans(t, spans)
+        if span is None or d < 0.06:
+            continue
+        note = _fold(m, prev, 57, 81)
+        prev = note
+        end = min(t + d, span[1])
+        k, strike = 0, t
+        while strike < end - 0.03:
+            nxt = min(end, strike + eighth)
+            ev.append({"t": strike + 0.012 + rng.normal(0, 0.004), "dur": nxt - strike,
+                       "midi": note, "vel": (0.85 if k % 2 == 0 else 0.6) * rng.uniform(0.9, 1.05)})
+            strike, k = nxt, k + 1
+    return ev
+
+
+def _ney_part(melody, spans, rng):
+    """Ney ezgiyi legato çalar; çok kısa süslemeleri atlar."""
+    ev = []
+    prev = 74
+    for t, d, m in melody:
+        span = _in_spans(t, spans)
+        if span is None or d < 0.09:
+            continue
+        note = _fold(m, prev, 62, 86)
+        prev = note
+        dur = min(d, span[1] - t)
+        if ev and ev[-1]["midi"] == note and t - (ev[-1]["t"] + ev[-1]["dur"]) < 0.08:
+            ev[-1]["dur"] = t + dur - ev[-1]["t"]
+            continue
+        if ev and 0 < t - (ev[-1]["t"] + ev[-1]["dur"]) < 0.15:
+            ev[-1]["dur"] = t - ev[-1]["t"] - 0.01  # legato: boşluğu kapat
+        ev.append({"t": t + 0.015, "dur": dur, "midi": note, "vel": 0.7 * rng.uniform(0.9, 1.05)})
+    return ev
+
+
 def arrange(an, settings):
     density = settings.get("density", "dengeli")
-    instruments = settings.get("instruments", ["bas", "perkusyon", "pad"])
+    instruments = settings.get("instruments", DEFAULT_INSTRUMENTS)
     seed = int(settings.get("seed", 1))
     rng = np.random.default_rng(seed)
 
@@ -186,39 +262,59 @@ def arrange(an, settings):
         ev.append({"t": end_t, "dur": 2.0 * clock.period, "midi": root, "vel": 0.85})
         events["bas"] = ev
 
-    if "perkusyon" in instruments:
+    for kit in ("bendir", "darbuka"):
+        if kit not in instruments:
+            continue
         ev = []
         for bar, level in zip(bars, levels):
-            pat = PERC_PATTERNS[bpb][LEVEL_PATTERN[density][level]]
+            style = LEVEL_PATTERN[density][level]
+            if kit == "darbuka" and "bendir" in instruments and style == "sade":
+                continue  # ikisi birlikteyken sakin bölümlerde yalnız bendir
+            pat = PERC_PATTERNS[bpb][style]
             b0 = bar[0]
             for pos, kind, v in pat:
+                if kit == "bendir" and kind == "ka" and style != "zengin":
+                    continue  # bendir daha sade: ara vuruşlar yalnız zengin yoğunlukta
                 ev.append({"t": jitter(clock.time(b0 + pos)), "kind": kind, "vel": vel(v, level)})
         ev.append({"t": clock.time(bars[-1][-1] + 1), "kind": "dum", "vel": 1.0})
-        events["perkusyon"] = ev
+        events[kit] = ev
 
-    if "pad" in instruments:
-        root = _pad_root(tonic)
+    min_level = {"sade": 2, "dengeli": 1, "zengin": 0}[density]
+
+    if "org" in instruments:
+        root = _pad_root(tonic)  # org dem'i orta bölgede (16' çekmece zaten pes katman ekler)
         notes = [root, root + 7, root + 12]
         if density == "zengin":
             notes.append(root + (3 if quality == "minor" else 4) + 12)
-        min_level = {"sade": 2, "dengeli": 1, "zengin": 0}[density]
-        ev = []
-        run_start = None
-        run_levels = []
-        for k, (bar, level) in enumerate(list(zip(bars, levels)) + [(None, -1)]):
-            active = bar is not None and level >= min_level
-            if active and run_start is None:
-                run_start, run_levels = k, []
-            if active:
-                run_levels.append(level)
-            if not active and run_start is not None:
-                t0 = clock.time(bars[run_start][0])
-                t1 = clock.time(bars[k - 1][-1] + 1)
-                v = 0.55 + 0.15 * float(np.mean(run_levels))
-                for m in notes:
-                    ev.append({"t": t0, "dur": t1 - t0, "midi": m, "vel": v})
-                run_start = None
-        events["pad"] = ev
+        events["org"] = _drone_runs(bars, levels, min_level, clock, notes, 0.5)
+
+    if "yaylilar" in instruments:
+        root = _pad_root(tonic) + (12 if "org" in instruments else 0)  # org varsa üstte
+        notes = [root, root + 7, root + 12]
+        if density == "zengin":
+            notes.append(root + (3 if quality == "minor" else 4) + 12)
+        # org da varsa yaylılar yalnız yoğun bölümlere girer
+        lvl = min(2, min_level + 1) if "org" in instruments else min_level
+        events["yaylilar"] = _drone_runs(bars, levels, lvl, clock, notes, 0.55)
+
+    melody = an.get("melody") or []
+    has_cura, has_ney = "cura" in instruments, "ney" in instruments
+    if melody and (has_cura or has_ney):
+        cura_bars, ney_bars = [], []
+        for bar, level in zip(bars, levels):
+            if level < min_level:
+                continue
+            span = (clock.time(bar[0]), clock.time(bar[-1] + 1))
+            if has_cura and has_ney:
+                (cura_bars if level == 2 else ney_bars).append(span)
+            elif has_cura:
+                cura_bars.append(span)
+            else:
+                ney_bars.append(span)
+        if has_cura:
+            events["cura"] = _cura_part(melody, cura_bars, clock, rng)
+        if has_ney:
+            events["ney"] = _ney_part(melody, ney_bars, rng)
 
     return {
         "events": events,

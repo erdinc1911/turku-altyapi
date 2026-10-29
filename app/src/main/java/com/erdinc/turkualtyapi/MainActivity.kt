@@ -53,9 +53,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mixerPanel: LinearLayout
     private lateinit var positionBar: SeekBar
     private lateinit var densityGroup: RadioGroup
-    private lateinit var cbBas: CheckBox
-    private lateinit var cbPerk: CheckBox
-    private lateinit var cbPad: CheckBox
+    private lateinit var instrumentBoxes: Map<String, CheckBox>
     private lateinit var tonicSpinner: Spinner
     private lateinit var meterSpinner: Spinner
 
@@ -67,7 +65,11 @@ class MainActivity : AppCompatActivity() {
     private var tempoFactor = 1.0
     private var seed = 1
     private var detectedTonic = 0
-    private val gains = mutableMapOf("source" to 1.0f, "bas" to 0.8f, "perkusyon" to 0.7f, "pad" to 0.5f)
+    // Başlangıç ses seviyeleri: altyapı kaynağın yaklaşık 8-10 dB altında, sazı bastırmadan.
+    private val gains = mutableMapOf(
+        "source" to 1.0f, "bas" to 0.9f, "bendir" to 1.0f, "darbuka" to 0.8f,
+        "org" to 0.7f, "yaylilar" to 0.4f, "cura" to 0.55f, "ney" to 0.6f
+    )
     private val mutes = mutableMapOf<String, Boolean>()
 
     private val noteNames = listOf("Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
@@ -105,9 +107,15 @@ class MainActivity : AppCompatActivity() {
         mixerPanel = findViewById(R.id.mixerPanel)
         positionBar = findViewById(R.id.positionBar)
         densityGroup = findViewById(R.id.densityGroup)
-        cbBas = findViewById(R.id.cbBas)
-        cbPerk = findViewById(R.id.cbPerk)
-        cbPad = findViewById(R.id.cbPad)
+        instrumentBoxes = linkedMapOf(
+            "bas" to findViewById(R.id.cbBas),
+            "bendir" to findViewById(R.id.cbBendir),
+            "darbuka" to findViewById(R.id.cbDarbuka),
+            "org" to findViewById(R.id.cbOrg),
+            "yaylilar" to findViewById(R.id.cbYaylilar),
+            "cura" to findViewById(R.id.cbCura),
+            "ney" to findViewById(R.id.cbNey),
+        )
         tonicSpinner = findViewById(R.id.tonicSpinner)
         meterSpinner = findViewById(R.id.meterSpinner)
 
@@ -133,6 +141,7 @@ class MainActivity : AppCompatActivity() {
             val base = fileText.text.toString().substringBeforeLast('.')
             saveWav.launch("${base}_altyapi.wav")
         }
+        findViewById<Button>(R.id.licenseButton).setOnClickListener { showLicenses() }
         positionBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) {
                 if (fromUser) { player?.seekFraction(p / 1000f); updateTimeText() }
@@ -155,9 +164,7 @@ class MainActivity : AppCompatActivity() {
             R.id.rbSade -> "sade"; R.id.rbZengin -> "zengin"; else -> "dengeli"
         })
         val inst = JSONArray()
-        if (cbBas.isChecked) inst.put("bas")
-        if (cbPerk.isChecked) inst.put("perkusyon")
-        if (cbPad.isChecked) inst.put("pad")
+        instrumentBoxes.forEach { (key, box) -> if (box.isChecked) inst.put(key) }
         o.put("instruments", inst)
         o.put("tempo_factor", tempoFactor)
         o.put("seed", seed)
@@ -366,6 +373,19 @@ class MainActivity : AppCompatActivity() {
             if (c.moveToFirst()) return c.getString(0)
         }
         return uri.lastPathSegment ?: "kayit"
+    }
+
+    private fun showLicenses() {
+        val text = assets.open("licenses.txt").bufferedReader().use { it.readText() }
+        val view = TextView(this).apply {
+            this.text = text
+            setPadding(dp(20), dp(12), dp(20), dp(12))
+            setTextIsSelectable(true)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Lisanslar ve ses kaynakları")
+            .setView(android.widget.ScrollView(this).apply { addView(view) })
+            .setPositiveButton("Kapat", null).show()
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()

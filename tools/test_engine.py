@@ -85,8 +85,9 @@ def main():
         errors.append("karar beklenen La, bulunan %s" % summary["tonic_name"])
     if abs(summary["tuning_cents"] - 20) > 8:
         errors.append("akort beklenen +20, bulunan %s" % summary["tuning_cents"])
-    if len(summary["stems"]) != 3:
-        errors.append("3 stem bekleniyordu")
+    keys = [s["key"] for s in summary["stems"]]
+    if keys != ["bas", "bendir", "org", "cura", "ney"]:
+        errors.append("varsayılan stemler beklenenden farklı: %s" % keys)
     if any(b < a for a, b in zip([p for p, _ in log], [p for p, _ in log][1:])):
         errors.append("ilerleme geri gitti")
 
@@ -99,13 +100,13 @@ def main():
 
     t1 = time.time()
     s2 = json.loads(pipeline.run_arrange(out, json.dumps({"density": "zengin", "tempo_factor": 2.0,
-                                                          "instruments": ["bas", "pad"]})))
+                                                          "instruments": ["bas", "yaylilar", "darbuka"]})))
     print("yeniden üretim: %.1f sn, bpm %s, stemler %s" % (time.time() - t1, s2["bpm"],
                                                           [s["key"] for s in s2["stems"]]))
     if not (190 <= s2["bpm"] <= 210):
         errors.append("tempo x2 hatalı: %s" % s2["bpm"])
-    if os.path.exists(os.path.join(out, "perkusyon.wav")):
-        errors.append("seçilmeyen perküsyon stemi silinmedi")
+    if os.path.exists(os.path.join(out, "ney.wav")):
+        errors.append("seçilmeyen ney stemi silinmedi")
 
     print("klasör:", out)
     if errors:

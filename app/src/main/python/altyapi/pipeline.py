@@ -21,8 +21,12 @@ from . import analysis, arrange, synth, wavio
 
 STEMS = [
     ("bas", "Bas"),
-    ("perkusyon", "Perküsyon"),
-    ("pad", "Yaylı pad"),
+    ("bendir", "Bendir"),
+    ("darbuka", "Darbuka"),
+    ("org", "Org"),
+    ("yaylilar", "Yaylılar"),
+    ("cura", "Cura"),
+    ("ney", "Ney"),
 ]
 
 
@@ -75,16 +79,25 @@ def _render(project_dir, an, settings, progress):
     ev = arr.get("events", {})
 
     produced = []
-    steps = [
-        ("bas", lambda: synth.render_bass(ev.get("bas", []), n, sr, tuning), "Bas çalınıyor"),
-        ("perkusyon", lambda: synth.render_perc(ev.get("perkusyon", []), n, sr, seed), "Perküsyon çalınıyor"),
-        ("pad", lambda: synth.render_pad(ev.get("pad", []), n, sr, tuning, seed), "Yaylılar çalınıyor"),
-    ]
-    for k, (key, fn, msg) in enumerate(steps):
-        progress(10 + 80 * k / len(steps), msg)
+    renderers = {
+        "bas": (lambda e: synth.render_sampled(e, n, sr, tuning, "bas", attack=0.004, release=0.08),
+                "Bas çalınıyor"),
+        "bendir": (lambda e: synth.render_perc(e, n, sr, "bendir", seed), "Bendir çalınıyor"),
+        "darbuka": (lambda e: synth.render_perc(e, n, sr, "darbuka", seed), "Darbuka çalınıyor"),
+        "org": (lambda e: synth.render_organ(e, n, sr, tuning, seed), "Org çalınıyor"),
+        "yaylilar": (lambda e: synth.render_sampled(e, n, sr, tuning, "yaylilar", attack=0.35, release=0.6),
+                     "Yaylılar çalınıyor"),
+        "cura": (lambda e: synth.render_cura(e, n, sr, tuning, seed), "Cura çalınıyor"),
+        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.06, release=0.15),
+                "Ney çalınıyor"),
+    }
+    keys = [k for k, _ in STEMS]
+    for i, key in enumerate(keys):
+        fn, msg = renderers[key]
         path = _path(project_dir, key + ".wav")
-        if key in ev and ev[key]:
-            audio = synth.safe_peak(fn())
+        if ev.get(key):
+            progress(10 + 85 * i / len(keys), msg)
+            audio = synth.safe_peak(fn(ev[key]))
             wavio.write_wav(path, audio, sr)
             produced.append(key)
         elif os.path.exists(path):

@@ -47,12 +47,24 @@
             android:text="Çalgılar" />
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal">
-            <CheckBox android:id="@+id/cbBas" android:layout_width="wrap_content"
+            <CheckBox android:id="@+id/cbBas" android:layout_width="0dp" android:layout_weight="1"
                 android:layout_height="wrap_content" android:checked="true" android:text="Bas" />
-            <CheckBox android:id="@+id/cbPerk" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:checked="true" android:text="Perküsyon" />
-            <CheckBox android:id="@+id/cbPad" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:checked="true" android:text="Yaylı pad" />
+            <CheckBox android:id="@+id/cbBendir" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:checked="true" android:text="Bendir" />
+            <CheckBox android:id="@+id/cbDarbuka" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:text="Darbuka" />
+            <CheckBox android:id="@+id/cbOrg" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:checked="true" android:text="Org" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <CheckBox android:id="@+id/cbYaylilar" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:text="Yaylılar" />
+            <CheckBox android:id="@+id/cbCura" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:checked="true" android:text="Cura" />
+            <CheckBox android:id="@+id/cbNey" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:checked="true" android:text="Ney" />
+            <View android:layout_width="0dp" android:layout_weight="1" android:layout_height="1dp" />
         </LinearLayout>
 
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -190,5 +202,13 @@
                 android:layout_marginTop="8dp"
                 android:text="WAV olarak kaydet" />
         </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/licenseButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Lisanslar ve ses kaynakları" />
     </LinearLayout>
 </ScrollView>

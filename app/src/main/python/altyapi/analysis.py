@@ -228,6 +228,82 @@ def estimate_tonic(mag, frame_energy, tuning_cents):
     return tonic, quality, [round(float(v), 4) for v in hf]
 
 
+# ---------------------------------------------------------------- melodi
+
+MEL_FFT = 4096
+
+
+def extract_melody(y, tuning_cents, progress=_noop, p0=0, p1=0):
+    """Baskın ezgiyi (vokal + saz birlikte) nota dizisi olarak çıkarır.
+
+    Harmonik toplam (salience) yöntemi: her aday temel frekans için ilk 8 harmoniğin
+    ağırlıklı genliği toplanır, en yüksek aday seçilir. Oktav hataları sonradan önemsizdir;
+    çalgılar ezgiyi kendi oktav aralıklarına yerleştirir.
+    Notalar ölçülen akort ızgarasına (12 eşit ses) yuvarlanır; koma perdeleri en yakın
+    yarım sese düşer (ileride makam desteğiyle düzeltilecek).
+    """
+    pad = MEL_FFT // 2
+    yp = np.pad(y, (pad, pad))
+    n_frames = 1 + (len(yp) - MEL_FFT) // HOP
+    win = np.hanning(MEL_FFT).astype(np.float32)
+    binw = ANALYSIS_SR / MEL_FFT
+
+    cand = np.arange(45.0, 86.0, 0.1)  # La2 .. Re6 aralığı, 10 sent adım
+    f0 = 440.0 * 2 ** ((cand - 69) / 12.0 + tuning_cents / 1200.0)
+    H = 8
+    weights = 0.8 ** np.arange(H)
+    nbins = MEL_FFT // 2 + 1
+    pos = f0[:, None] * np.arange(1, H + 1)[None, :] / binw
+    valid = pos < nbins - 2
+    pos = np.where(valid, pos, 0)
+    i0 = pos.astype(np.int64)
+    fr = (pos - i0).astype(np.float32)
+    w = (weights[None, :] * valid).astype(np.float32)
+
+    best = np.zeros(n_frames, dtype=np.int64)
+    best_sal = np.zeros(n_frames, dtype=np.float32)
+    energy = np.zeros(n_frames, dtype=np.float32)
+    chunk = 128
+    for start in range(0, n_frames, chunk):
+        stop = min(n_frames, start + chunk)
+        idx = np.arange(start, stop)[:, None] * HOP + np.arange(MEL_FFT)[None, :]
+        mag = np.abs(np.fft.rfft(yp[idx] * win, axis=1)).astype(np.float32)
+        mag = np.sqrt(mag)  # sıkıştırma: güçlü tek harmoniğin baskınlığını azaltır
+        sal = np.zeros((stop - start, len(cand)), dtype=np.float32)
+        for h in range(H):
+            a = mag[:, i0[:, h]]
+            b = mag[:, i0[:, h] + 1]
+            sal += w[:, h] * (a + (b - a) * fr[:, h])
+        best[start:stop] = np.argmax(sal, axis=1)
+        best_sal[start:stop] = sal[np.arange(stop - start), best[start:stop]]
+        energy[start:stop] = mag.sum(axis=1)
+        if p1 > p0:
+            progress(int(p0 + (p1 - p0) * stop / n_frames), "Ezgi çıkarılıyor")
+
+    voiced = (best_sal > 0.35 * np.percentile(best_sal, 90)) & (energy > np.percentile(energy, 25))
+    midi = np.round(cand[best]).astype(np.int64)
+    # 5 karelik medyan süzgeç (yalnız sesli kareler)
+    sm = midi.copy()
+    for k in range(2, len(midi) - 2):
+        sm[k] = int(np.median(midi[k - 2:k + 3]))
+    sm[~voiced] = -1
+
+    notes = []
+    k = 0
+    frame_t = HOP / ANALYSIS_SR
+    while k < len(sm):
+        if sm[k] < 0:
+            k += 1
+            continue
+        j = k
+        while j + 1 < len(sm) and (sm[j + 1] == sm[k] or (sm[j + 1] < 0 and j + 2 < len(sm) and sm[j + 2] == sm[k])):
+            j += 1
+        if j - k + 1 >= 3:
+            notes.append([round(k * frame_t, 3), round((j - k + 1) * frame_t, 3), int(sm[k])])
+        k = j + 1
+    return notes
+
+
 # ---------------------------------------------------------------- ana giriş
 
 def analyze(y_mono, sr, progress=_noop):
@@ -259,6 +335,8 @@ def analyze(y_mono, sr, progress=_noop):
     progress(50, "Akort ve karar sesi bulunuyor")
     tuning = estimate_tuning(mag)
     tonic, quality, chroma = estimate_tonic(mag, frame_energy, tuning)
+    del mag
+    melody = extract_melody(y, tuning, progress, 55, 95)
 
     # her vuruşun enerjisi (dinamik için)
     beat_energy = []
@@ -286,4 +364,5 @@ def analyze(y_mono, sr, progress=_noop):
         "tonic_name": NOTE_NAMES[tonic],
         "quality": quality,
         "chroma": chroma,
+        "melody": melody,
     }
