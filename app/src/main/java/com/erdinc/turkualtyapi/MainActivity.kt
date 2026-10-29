@@ -297,8 +297,9 @@ class MainActivity : AppCompatActivity() {
         player = to
         listeningB = toB
         buildMixer()
-        findViewById<Button>(R.id.listenAButton).alpha = if (toB) 0.5f else 1f
-        findViewById<Button>(R.id.listenBButton).alpha = if (toB) 1f else 0.5f
+        styleListen(findViewById(R.id.listenAButton), !toB)
+        styleListen(findViewById(R.id.listenBButton), toB)
+        findViewById<TextView>(R.id.abNowText).text = if (toB) "Şu an: B dinleniyor" else "Şu an: A dinleniyor"
         if (wasPlaying) { to.play(); playButton.text = "Duraklat" } else playButton.text = "Çal"
     }
 
@@ -317,14 +318,34 @@ class MainActivity : AppCompatActivity() {
                 else -> densityGroup.check(R.id.rbDengeli)
             }
             statusText.text = "B seçildi."
+            Toast.makeText(this, "B seçildi, altyapın artık B", Toast.LENGTH_LONG).show()
         } else {
             b.release()
             player = a
             statusText.text = "A kaldı."
+            Toast.makeText(this, "A kaldı, B silindi", Toast.LENGTH_LONG).show()
         }
         playerA = null; playerB = null; listeningB = false
         findViewById<View>(R.id.abPanel).visibility = View.GONE
         buildMixer()
+    }
+
+    /** Dinlenen versiyonun düğmesi dolu renkli, diğeri boş çerçeveli. */
+    private fun styleListen(b: com.google.android.material.button.MaterialButton, active: Boolean) {
+        val primary = com.google.android.material.color.MaterialColors.getColor(
+            b, com.google.android.material.R.attr.colorPrimary)
+        val onPrimary = com.google.android.material.color.MaterialColors.getColor(
+            b, com.google.android.material.R.attr.colorOnPrimary)
+        if (active) {
+            b.backgroundTintList = android.content.res.ColorStateList.valueOf(primary)
+            b.setTextColor(onPrimary)
+            b.strokeWidth = 0
+        } else {
+            b.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+            b.setTextColor(primary)
+            b.strokeColor = android.content.res.ColorStateList.valueOf(primary)
+            b.strokeWidth = dp(2)
+        }
     }
 
     private fun loadPlayer(dir: File, summary: JSONObject): StemPlayer {
