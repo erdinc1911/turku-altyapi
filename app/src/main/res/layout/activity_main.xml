@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:id="@+id/root"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+
+        <TextView
+            android:id="@+id/versionText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:alpha="0.6"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 1. Kayıt -->
+        <TextView style="@style/Bolum" android:text="1. Kayıt" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/pickButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ses veya video dosyası seç" />
+
+        <TextView
+            android:id="@+id/fileText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Henüz dosya seçilmedi" />
+
+        <!-- 2. Altyapı ayarları -->
+        <TextView style="@style/Bolum" android:text="2. Altyapı" />
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Çalgılar" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <CheckBox android:id="@+id/cbBas" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:checked="true" android:text="Bas" />
+            <CheckBox android:id="@+id/cbPerk" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:checked="true" android:text="Perküsyon" />
+            <CheckBox android:id="@+id/cbPad" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:checked="true" android:text="Yaylı pad" />
+        </LinearLayout>
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:text="Yoğunluk" />
+        <RadioGroup android:id="@+id/densityGroup" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="horizontal">
+            <RadioButton android:id="@+id/rbSade" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Sade" />
+            <RadioButton android:id="@+id/rbDengeli" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:checked="true" android:text="Dengeli" />
+            <RadioButton android:id="@+id/rbZengin" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Zengin" />
+        </RadioGroup>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/generateButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:enabled="false"
+            android:text="Altyapı oluştur" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:max="100"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <!-- 3. Şarkıyı anladım -->
+        <LinearLayout
+            android:id="@+id/resultPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView style="@style/Bolum" android:text="3. Şarkıyı böyle anladım" />
+
+            <TextView
+                android:id="@+id/summaryText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" android:alpha="0.7"
+                android:text="Yanlışsa düzelt, sonra 'Yeniden üret'e bas. Analiz tekrarlanmaz." />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tempoHalfButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp" android:layout_weight="1"
+                    android:layout_height="wrap_content" android:text="Tempo yarıya" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tempoDoubleButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp" android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:layout_height="wrap_content" android:text="Tempo iki katı" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:layout_width="110dp" android:layout_height="wrap_content"
+                    android:text="Karar sesi" />
+                <Spinner android:id="@+id/tonicSpinner" android:layout_width="0dp"
+                    android:layout_weight="1" android:layout_height="48dp" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:layout_width="110dp" android:layout_height="wrap_content"
+                    android:text="Ölçü" />
+                <Spinner android:id="@+id/meterSpinner" android:layout_width="0dp"
+                    android:layout_weight="1" android:layout_height="48dp" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/regenButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Yeniden üret (başka versiyon)" />
+
+            <!-- 4. Mikser -->
+            <TextView style="@style/Bolum" android:text="4. Dinle ve ayarla" />
+
+            <LinearLayout
+                android:id="@+id/mixerPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <SeekBar
+                android:id="@+id/positionBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:max="1000" />
+
+            <TextView
+                android:id="@+id/timeText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:text="0:00 / 0:00" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/playButton"
+                    android:layout_width="0dp" android:layout_weight="1"
+                    android:layout_height="wrap_content" android:text="Çal" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/stopButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp" android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:layout_height="wrap_content" android:text="Başa dön" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/exportButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="WAV olarak kaydet" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

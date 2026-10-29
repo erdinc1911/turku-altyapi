@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TurkuAltyapi" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#8A4B2A</item>
+        <item name="colorSecondary">#2E6B5E</item>
+    </style>
+</resources>

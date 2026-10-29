@@ -1,0 +1,61 @@
+name: APK derle
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Chaquopy, uygulamadaki Python sürümüyle aynı sürümü derleme makinesinde ister.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Motor testi (Python)
+        run: |
+          pip install "numpy<2"
+          python tools/test_engine.py
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: APK derle
+        run: gradle assembleDebug --stacktrace
+
+      - name: APK dosyasını hazırla
+        run: cp app/build/outputs/apk/debug/app-debug.apk TurkuAltyapi.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TurkuAltyapi-${{ github.run_number }}
+          path: TurkuAltyapi.apk
+
+      - name: İndirme sayfasını güncelle (son-surum)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete son-surum --yes --cleanup-tag || true
+          gh release create son-surum TurkuAltyapi.apk \
+            --target "${GITHUB_SHA}" \
+            --prerelease \
+            --title "Son deneme sürümü (#${{ github.run_number }})" \
+            --notes "Tablete kurmak için TurkuAltyapi.apk dosyasını indirip açın. Derleme: ${GITHUB_SHA::7}"
