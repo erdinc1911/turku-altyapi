@@ -158,6 +158,56 @@
                 android:layout_height="wrap_content"
                 android:text="Yeniden üret (başka versiyon)" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/abButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="A / B karşılaştır" />
+
+            <LinearLayout
+                android:id="@+id/abPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/abLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/listenAButton"
+                        android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="A'yı dinle" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/listenBButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:layout_height="wrap_content" android:text="B'yi dinle" />
+                </LinearLayout>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/keepAButton"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="A kalsın" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/chooseBButton"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="B'yi seç" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- 4. Mikser -->
             <TextView style="@style/Bolum" android:text="4. Dinle ve ayarla" />
 

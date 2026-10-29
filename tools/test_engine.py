@@ -108,6 +108,14 @@ def main():
     if os.path.exists(os.path.join(out, "ney.wav")):
         errors.append("seçilmeyen ney stemi silinmedi")
 
+    v = json.loads(pipeline.run_variant(out, json.dumps({"density": "dengeli"})))
+    print(v["variant_label"], [s["file"] for s in v["stems"]])
+    if not all(s["file"].startswith("b/") for s in v["stems"]):
+        errors.append("B versiyonu alt klasöre yazılmadı")
+    pipeline.promote_variant(out)
+    if os.path.isdir(os.path.join(out, "b")):
+        errors.append("B seçilince alt klasör kaldırılmadı")
+
     print("klasör:", out)
     if errors:
         print("HATALAR:\n- " + "\n- ".join(errors))

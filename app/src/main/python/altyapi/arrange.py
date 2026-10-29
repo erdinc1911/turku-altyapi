@@ -187,61 +187,102 @@ def _approach(next_root, scale):
 
 # ---------------------------------------------------------------- bendir (iki el)
 
-# (vuruş içi konum, D=düm merkez / T=tek kenar / k=parmak dolgusu, hız); her stil için A ve B çeşitlemesi
+# Bendir kalıpları: sabit ve düzenli (ölçüden ölçüye değişmez), yalnız sekizlik vuruşlar.
+# (vuruş içi konum, D=düm merkez / T=tek kenar / k=parmak, hız)
 BENDIR_PATTERNS = {
-    2: {
-        "sade": [[(0, "D", 1.0), (1, "T", 0.8), (1.5, "k", 0.3)],
-                 [(0, "D", 1.0), (1, "T", 0.75), (1.75, "k", 0.3)]],
-        "dengeli": [[(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.85), (1.5, "k", 0.4), (1.75, "k", 0.3)],
-                    [(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (1.5, "D", 0.6), (1.75, "k", 0.3)]],
-        "zengin": [[(0, "D", 1.0), (0.25, "k", 0.3), (0.5, "k", 0.4), (1, "T", 0.9), (1.25, "k", 0.3),
-                    (1.5, "D", 0.7), (1.75, "k", 0.35)],
-                   [(0, "D", 1.0), (0.5, "k", 0.4), (0.75, "k", 0.3), (1, "T", 0.9), (1.5, "k", 0.45),
-                    (1.75, "T", 0.5)]],
-    },
-    3: {
-        "sade": [[(0, "D", 1.0), (1, "T", 0.7), (2, "T", 0.7)], [(0, "D", 1.0), (1.5, "k", 0.3), (2, "T", 0.75)]],
-        "dengeli": [[(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (1.5, "k", 0.35), (2, "T", 0.8),
-                     (2.5, "k", 0.35)],
-                    [(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (2, "D", 0.6), (2.5, "k", 0.35)]],
-        "zengin": [[(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.85), (1.25, "k", 0.3), (1.5, "k", 0.4),
-                    (2, "T", 0.85), (2.5, "k", 0.4), (2.75, "k", 0.3)],
-                   [(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.85), (1.5, "D", 0.6), (2, "T", 0.85),
-                    (2.5, "k", 0.4)]],
-    },
-    4: {
-        "sade": [[(0, "D", 1.0), (2, "T", 0.8), (3.5, "k", 0.3)], [(0, "D", 1.0), (1.5, "k", 0.3), (2, "T", 0.8)]],
-        "dengeli": [[(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (1.5, "k", 0.35), (2, "D", 0.85),
-                     (2.5, "k", 0.35), (3, "T", 0.85), (3.5, "k", 0.35)],
-                    [(0, "D", 1.0), (0.5, "k", 0.35), (1, "T", 0.8), (2, "D", 0.8), (2.5, "D", 0.55),
-                     (3, "T", 0.85), (3.5, "k", 0.4), (3.75, "k", 0.3)]],
-        "zengin": [[(0, "D", 1.0), (0.25, "k", 0.3), (0.5, "k", 0.4), (1, "T", 0.85), (1.5, "k", 0.4),
-                    (2, "D", 0.9), (2.25, "k", 0.3), (2.5, "k", 0.4), (3, "T", 0.9), (3.5, "k", 0.45),
-                    (3.75, "k", 0.35)],
-                   [(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.85), (1.25, "k", 0.3), (1.5, "D", 0.6),
-                    (2, "D", 0.9), (2.5, "k", 0.4), (3, "T", 0.9), (3.25, "k", 0.35), (3.5, "T", 0.6)]],
-    },
+    2: {"sade": [(0, "D", 1.0), (1, "T", 0.8)],
+        "dengeli": [(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.85), (1.5, "k", 0.4)],
+        "zengin": [(0, "D", 1.0), (0.5, "k", 0.45), (1, "T", 0.9), (1.5, "D", 0.6)]},
+    3: {"sade": [(0, "D", 1.0), (1, "T", 0.75), (2, "T", 0.75)],
+        "dengeli": [(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.8), (2, "T", 0.8), (2.5, "k", 0.4)],
+        "zengin": [(0, "D", 1.0), (0.5, "k", 0.45), (1, "T", 0.85), (1.5, "k", 0.4), (2, "T", 0.85),
+                   (2.5, "k", 0.45)]},
+    4: {"sade": [(0, "D", 1.0), (2, "T", 0.8)],
+        "dengeli": [(0, "D", 1.0), (0.5, "k", 0.4), (1, "T", 0.8), (2, "D", 0.85), (2.5, "k", 0.4),
+                    (3, "T", 0.85)],
+        "zengin": [(0, "D", 1.0), (0.5, "k", 0.45), (1, "T", 0.85), (1.5, "k", 0.4), (2, "D", 0.9),
+                   (2.5, "k", 0.45), (3, "T", 0.9), (3.5, "k", 0.45)]},
 }
 _KIND = {"D": "dum", "T": "tek", "k": "ka"}
+PERC_MIN_GAP = 0.14  # iki vuruş arasında en az bu kadar (hızlı tempoda sekizlikler düşer)
 
 
 def _bendir_part(bars, levels, bpb, density, clock, rng):
     ev = []
     for k, (bar, level) in enumerate(zip(bars, levels)):
         style = LEVEL_PATTERN[density][level]
-        variants = BENDIR_PATTERNS[bpb][style]
-        pat = list(variants[k % 2])
+        pat = list(BENDIR_PATTERNS[bpb][style])
         b0 = bar[0]
-        fill = (k % 4 == 3) and level >= 1 and k < len(bars) - 1
-        if fill:  # 4 ölçüde bir son vuruşta kısa geçiş (kenar vuruşları, giderek güçlenen)
+        # 8 ölçüde bir, yalnız coşkulu bölümlerde, son vuruşta kısa ve sakin bir geçiş
+        if k % 8 == 7 and level == 2 and k < len(bars) - 1:
             last = bpb - 1
-            pat = [p for p in pat if p[0] < last]
-            pat += [(last, "T", 0.55), (last + 0.25, "k", 0.45), (last + 0.5, "T", 0.7), (last + 0.75, "T", 0.85)]
+            pat = [p for p in pat if p[0] < last] + [(last, "T", 0.8), (last + 0.5, "T", 0.65)]
         for pos, kind, v in pat:
-            vv = v * (0.82 + 0.1 * level) * rng.uniform(0.88, 1.1)
-            ev.append({"t": clock.time(b0 + pos) + rng.normal(0, 0.005), "kind": _KIND[kind],
-                       "vel": float(np.clip(vv, 0.05, 1.0))})
+            t = clock.time(b0 + pos)
+            if ev and t - ev[-1]["t"] < PERC_MIN_GAP:
+                continue
+            vv = v * (0.85 + 0.08 * level) * rng.uniform(0.94, 1.06)
+            ev.append({"t": t + rng.normal(0, 0.003), "kind": _KIND[kind], "vel": float(np.clip(vv, 0.05, 1.0))})
     ev.append({"t": clock.time(bars[-1][-1] + 1), "kind": "dum", "vel": 1.0})
+    return ev
+
+
+# Bas vuruş yerleri (vuruş içi konum): yoğunluğa göre
+BASS_SLOTS = {
+    2: {"sade": [0], "dengeli": [0, 1], "zengin": [0, 1, 1.5]},
+    3: {"sade": [0], "dengeli": [0, 2], "zengin": [0, 1, 2]},
+    4: {"sade": [0, 2], "dengeli": [0, 1, 2, 3], "zengin": [0, 1, 2, 3, 3.5]},
+}
+CONSONANT = {0: 1.0, 3: 0.8, 4: 0.8, 7: 0.9, 8: 0.5, 9: 0.5}  # ezgi notasına göre bas aralığı
+
+
+def _melody_pc_at(notes, t):
+    """t anında çalan (ya da en son çalmış) ezgi notasının perde sınıfı."""
+    if len(notes) == 0:
+        return None
+    i = int(np.searchsorted(notes[:, 0], t, side="right")) - 1
+    if i < 0:
+        return None
+    return int(notes[i, 2]) % 12
+
+
+def _bass_line(bars, levels, roots, bpb, density, clock, melody, tonic, scale, rng, vel):
+    """Ezgiye karşı yürüyen bas: ölçü başında kök, aradaki vuruşlarda ezgiyle uyumlu ve
+    önceki notaya yakın (adım adım) dizi sesleri. Aynı notayı üst üste tekrarlamaktan kaçınır."""
+    base = _bass_root(tonic)
+    lo, hi = 28, 47
+    pool = [m for m in range(lo, hi + 1) if (m - base) % 12 in scale]
+    notes = np.array(melody, dtype=float) if melody else np.zeros((0, 3))
+    ev, prev = [], base
+    for k, (bar, level) in enumerate(zip(bars, levels)):
+        style = LEVEL_PATTERN[density][level]
+        slots = BASS_SLOTS[bpb][style]
+        b0 = bar[0]
+        root_pc = (base + roots[k]) % 12
+        for j, pos in enumerate(slots):
+            t0 = clock.time(b0 + pos)
+            nxt = slots[j + 1] if j + 1 < len(slots) else bpb
+            t1 = clock.time(b0 + nxt)
+            if ev and t0 - ev[-1]["t"] < BASS_MIN_GAP:
+                continue
+            mel = _melody_pc_at(notes, t0 + 0.05)
+            best, best_s = prev, -9e9
+            for m in pool:
+                s_ = -0.12 * abs(m - prev)
+                if pos == 0:
+                    s_ += 2.0 if m % 12 == root_pc else -1.0  # ölçü başında kök
+                elif mel is not None:
+                    s_ += CONSONANT.get((mel - m) % 12, -0.8)
+                if m == prev and pos != 0:
+                    s_ -= 0.6  # hareket olsun
+                if abs(m - prev) > 7:
+                    s_ -= 0.8  # büyük sıçrama yapma
+                s_ += rng.normal(0, 0.05)
+                if s_ > best_s:
+                    best, best_s = m, s_
+            ev.append({"t": t0 + rng.normal(0, 0.004), "dur": max(0.08, (t1 - t0) * 0.92),
+                       "midi": best, "vel": vel(0.95 if pos == 0 else 0.75, level)})
+            prev = best
     return ev
 
 
@@ -350,13 +391,13 @@ def _ney_part(melody, spans, rng):
             if ev[-1]["midi"] == note and gap < 0.06:
                 ev[-1]["dur"] = t + dur - ev[-1]["t"]
                 continue
-            if 0 < gap < 0.45:
+            if 0 < gap < 0.6:
                 ev[-1]["dur"] = t - ev[-1]["t"] + 0.03  # legato: boşluğu kapat, hafif üst üste bin
         ev.append({"t": t + 0.015, "dur": dur, "midi": note, "vel": 0.7 * rng.uniform(0.92, 1.04)})
     # cümle sonlarında sesi biraz uzat (nefes bitene kadar)
     for i, e in enumerate(ev):
         nxt = ev[i + 1]["t"] if i + 1 < len(ev) else e["t"] + e["dur"] + 0.6
-        e["dur"] = max(e["dur"], min(nxt - e["t"] + 0.03, e["dur"] + 0.4))
+        e["dur"] = max(e["dur"], min(nxt - e["t"] + 0.05, e["dur"] + 0.8))
     return ev
 
 
@@ -405,35 +446,7 @@ def arrange(an, settings):
 
     if "bas" in instruments:
         root = _bass_root(tonic)
-
-        def bass_midi(rel):
-            m = root + rel
-            return m - 12 if m > 45 else m
-
-        ev = []
-        for k, (bar, level) in enumerate(zip(bars, levels)):
-            style = LEVEL_PATTERN[density][level]
-            pat = BASS_PATTERNS[bpb][style]
-            b0 = bar[0]
-            r = roots[k]
-            for pos, dur, interval, v in pat:
-                t0 = clock.time(b0 + pos)
-                t1 = clock.time(b0 + pos + dur)
-                rel = r + interval
-                if interval == 7 and (r + 7) % 12 not in scale:
-                    rel = r  # beşli dizide yoksa kökü tekrarla
-                if ev and t0 - ev[-1]["t"] < BASS_MIN_GAP:
-                    ev[-1]["dur"] = max(ev[-1]["dur"], (t1 - ev[-1]["t"]) * 0.95)
-                    continue
-                ev.append({"t": jitter(t0), "dur": max(0.05, (t1 - t0) * 0.95),
-                           "midi": bass_midi(rel), "vel": vel(v, level)})
-            # kök değişecekse ölçünün son yarım vuruşunda geçiş sesi
-            if style != "sade" and k + 1 < len(bars) and roots[k + 1] != r:
-                ta = clock.time(b0 + bpb - 0.5)
-                if ev and ta - ev[-1]["t"] >= 0.25:
-                    ev[-1]["dur"] = min(ev[-1]["dur"], (ta - ev[-1]["t"]) * 0.95)
-                    ev.append({"t": jitter(ta), "dur": (clock.time(b0 + bpb) - ta) * 0.9,
-                               "midi": bass_midi(_approach(roots[k + 1], scale)), "vel": vel(0.65, level)})
+        ev = _bass_line(bars, levels, roots, bpb, density, clock, an.get("melody") or [], tonic, scale, rng, vel)
         # bitiş: son ölçüden sonra uzun karar sesi
         end_t = clock.time(bars[-1][-1] + 1)
         ev.append({"t": end_t, "dur": 2.0 * clock.period, "midi": root, "vel": 0.85})

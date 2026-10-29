@@ -116,34 +116,48 @@ def render_sampled(events, n, sr, tuning, bank, **kw):
 
 # ---------------------------------------------------------------- vurmalılar
 
-# tür -> [(örnek, perde kaydırma (yarım ses), kazanç, gecikme sn)]
+# tür -> [(örnek paketi, perde kaydırma (yarım ses), kazanç, gecikme sn)]
 PERC_KITS = {
+    # Bendir: gövde (derin düm) + kiriş vızıltısı + parmak; VSCO 2 CE (CC0) kayıtları
     "bendir": {
-        "dum": [("tumba", -4, 1.0, 0.0), ("kudum", -3, 0.45, 0.0), ("zil", 0, 0.10, 0.006)],
-        "tek": [("slap", -1, 0.8, 0.0), ("zil", 0, 0.16, 0.004)],
-        "ka": [("slap", 1, 0.4, 0.0), ("zil", 0, 0.08, 0.004)],
+        "dum": [("bendir_govde", 1.0, 1.0, 0.0), ("bendir_vizilti", -3.0, 0.22, 0.004)],
+        "tek": [("bendir_vizilti", 1.0, 0.75, 0.0), ("bendir_parmak", 0.0, 0.35, 0.0)],
+        "ka": [("bendir_parmak", 0.0, 0.5, 0.0), ("bendir_vizilti", 2.0, 0.12, 0.002)],
     },
     "darbuka": {
-        "dum": [("tumba", -1, 0.95, 0.0)],
-        "tek": [("timbale", 2, 0.65, 0.0)],
-        "ka": [("bongo_rim", 0, 0.55, 0.0)],
+        "dum": [("davul_tumba", -1.0, 0.95, 0.0)],
+        "tek": [("davul_timbale", 2.0, 0.65, 0.0)],
+        "ka": [("davul_bongo_rim", 0.0, 0.55, 0.0)],
     },
 }
+
+
+def _perc_hit(bank, variant, semis, vel, sr):
+    zones = _load_bank(bank)
+    z = zones[variant % len(zones)]
+    ratio = 2.0 ** (semis / 12.0) * z["sr"] / sr
+    audio = z["audio"]
+    n = int(min(len(audio) / ratio, 1.4 * sr))
+    pos = np.arange(n, dtype=np.float64) * ratio
+    i0 = pos.astype(np.int64)
+    i1 = np.minimum(i0 + 1, len(audio) - 1)
+    fr = (pos - i0).astype(np.float32)
+    sig = audio[i0] + (audio[i1] - audio[i0]) * fr
+    # yumuşak vuruşlar biraz daha kısa ve koyu: hıza bağlı hafif sönüm
+    sig *= np.exp(-np.arange(n, dtype=np.float32) / ((0.25 + 0.5 * vel) * sr))
+    return (sig * (vel ** 1.3) * 0.6).astype(np.float32)
 
 
 def render_perc(events, n, sr, kit, seed=1):
     rng = np.random.default_rng(seed + 7)
     out = np.zeros(n, dtype=np.float32)
     layers = PERC_KITS[kit]
-    for e in events:
+    for i, e in enumerate(events):
         start = int(e["t"] * sr)
-        for name, semis, gain, delay in layers[e["kind"]]:
-            z = _load_bank("davul_" + name)[0]
-            # her vuruşta çok küçük perde ve renk farkı (aynı örnek tekrarı duyulmasın)
-            cents = semis * 100 + rng.normal(0, 12)
-            sig = sample_note("davul_" + name, z["root"] + cents / 100.0, 1.2, e["vel"], sr,
-                              attack=0.0, release=0.05, max_len=1.3)
-            _add(out, start + int(delay * sr), sig * gain * 0.9)
+        variant = i + int(rng.integers(0, 2))  # aynı vuruşun art arda tekrarını kır
+        for bank, semis, gain, delay in layers[e["kind"]]:
+            sig = _perc_hit(bank, variant, semis + rng.normal(0, 0.08), e["vel"], sr)
+            _add(out, start + int(delay * sr), sig * gain)
     return out
 
 

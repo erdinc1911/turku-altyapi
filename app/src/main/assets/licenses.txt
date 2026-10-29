@@ -1,6 +1,7 @@
 Türkü Altyapı — kullanılan açık kaynak bileşenler
 
-Çalgı sesleri (bas, yaylılar, ney, vurmalılar): FluidR3 Mono ses bankası, MIT lisansı.
+Çalgı sesleri (bas, yaylılar, ney, darbuka): FluidR3 Mono ses bankası, MIT lisansı.
+Bendir sesleri: VSCO 2 Community Edition (Versilian Studios), CC0 1.0 (kamu malı).
 Org ve cura sesleri uygulama içinde sentezlenir.
 Python çalışma ortamı: Chaquopy (MIT), Python (PSF lisansı), NumPy (BSD 3-Clause).
 

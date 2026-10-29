@@ -25,12 +25,9 @@ MELODIC = {
 }
 # davul kiti: ad -> GM tuşu
 DRUMS = {
-    "tumba": 64,      # alçak konga: bendir/darbuka düm gövdesi
-    "slap": 62,       # kapalı konga vuruşu: bendir tek
+    "tumba": 64,      # alçak konga: darbuka düm gövdesi
     "timbale": 65,    # metalik çınlama: darbuka tek
     "bongo_rim": 60,  # kenar vuruşu: darbuka ka
-    "zil": 54,        # tef zili: bendir zilleri için çok hafif katman
-    "kudum": 41,      # alçak tom: derin bendir düm katmanı
 }
 
 

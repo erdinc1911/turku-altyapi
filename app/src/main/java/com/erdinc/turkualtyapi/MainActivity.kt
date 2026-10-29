@@ -59,7 +59,11 @@ class MainActivity : AppCompatActivity() {
 
     private var sourceUri: Uri? = null
     private var projectDir: File? = null
-    private var player: StemPlayer? = null
+    private var player: StemPlayer? = null      // şu an çalan (A ya da B)
+    private var playerA: StemPlayer? = null
+    private var playerB: StemPlayer? = null
+    private var listeningB = false
+    private var variantDensity: String? = null
     private var busy = false
     private var userSeeking = false
     private var tempoFactor = 1.0
@@ -142,6 +146,11 @@ class MainActivity : AppCompatActivity() {
             saveWav.launch("${base}_altyapi.wav")
         }
         findViewById<Button>(R.id.licenseButton).setOnClickListener { showLicenses() }
+        findViewById<Button>(R.id.abButton).setOnClickListener { startVariant() }
+        findViewById<Button>(R.id.listenAButton).setOnClickListener { switchAB(false) }
+        findViewById<Button>(R.id.listenBButton).setOnClickListener { switchAB(true) }
+        findViewById<Button>(R.id.keepAButton).setOnClickListener { endAB(keepB = false) }
+        findViewById<Button>(R.id.chooseBButton).setOnClickListener { endAB(keepB = true) }
         positionBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) {
                 if (fromUser) { player?.seekFraction(p / 1000f); updateTimeText() }
@@ -152,7 +161,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        player?.release()
+        player?.release(); playerA?.release(); playerB?.release()
         super.onDestroy()
     }
 
@@ -209,6 +218,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun runJob(work: () -> Pair<JSONObject, Double?>) {
         if (busy) return
+        if (playerB != null) endAB(keepB = false)
         setBusy(true)
         player?.pause(); playButton.text = "Çal"
         Thread {
@@ -236,6 +246,87 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    // ------------------------------------------------------------ A / B karşılaştırma
+
+    private fun startVariant() {
+        val dir = projectDir ?: return
+        if (busy) return
+        if (playerB != null) endAB(keepB = false)
+        val settings = settingsJson()
+        setBusy(true)
+        player?.pause(); playButton.text = "Çal"
+        Thread {
+            try {
+                val res = Python.getInstance().getModule("altyapi.pipeline")
+                    .callAttr("run_variant", dir.absolutePath, settings, ProgressBridge(0, 100)).toString()
+                val summary = JSONObject(res)
+                val pb = loadPlayer(dir, summary)
+                runOnUiThread {
+                    playerA = player
+                    playerB = pb
+                    variantDensity = summary.optString("variant_density")
+                    findViewById<TextView>(R.id.abLabel).text =
+                        "A: şu anki altyapı · ${summary.optString("variant_label")}\n" +
+                        "İkisini aynı yerden dinleyip karşılaştır, beğendiğini seç."
+                    findViewById<View>(R.id.abPanel).visibility = View.VISIBLE
+                    statusText.text = "B versiyonu hazır."
+                    setBusy(false)
+                    switchAB(false)
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    setBusy(false)
+                    statusText.text = "B versiyonu üretilemedi: ${t.message}"
+                }
+            }
+        }.start()
+    }
+
+    /** Dinlenen versiyonu değiştirir; çalma konumu ve durumu korunur. */
+    private fun switchAB(toB: Boolean) {
+        val a = playerA ?: return
+        val b = playerB ?: return
+        val from = player ?: a
+        val to = if (toB) b else a
+        val wasPlaying = from.isPlaying
+        val frac = from.position.toFloat() / maxOf(1, from.totalFrames)
+        from.pause()
+        // mikserdeki ayarlar iki versiyonda da aynı olsun
+        to.tracks.forEach { t -> gains[t.key]?.let { t.gain = it }; t.muted = mutes[t.key] ?: false }
+        to.seekFraction(frac)
+        player = to
+        listeningB = toB
+        buildMixer()
+        findViewById<Button>(R.id.listenAButton).alpha = if (toB) 0.5f else 1f
+        findViewById<Button>(R.id.listenBButton).alpha = if (toB) 1f else 0.5f
+        if (wasPlaying) { to.play(); playButton.text = "Duraklat" } else playButton.text = "Çal"
+    }
+
+    private fun endAB(keepB: Boolean) {
+        val a = playerA ?: return
+        val b = playerB ?: return
+        a.pause(); b.pause(); playButton.text = "Çal"
+        if (keepB) {
+            val dir = projectDir!!
+            Python.getInstance().getModule("altyapi.pipeline").callAttr("promote_variant", dir.absolutePath)
+            a.release()
+            player = b
+            when (variantDensity) {
+                "sade" -> densityGroup.check(R.id.rbSade)
+                "zengin" -> densityGroup.check(R.id.rbZengin)
+                else -> densityGroup.check(R.id.rbDengeli)
+            }
+            statusText.text = "B seçildi."
+        } else {
+            b.release()
+            player = a
+            statusText.text = "A kaldı."
+        }
+        playerA = null; playerB = null; listeningB = false
+        findViewById<View>(R.id.abPanel).visibility = View.GONE
+        buildMixer()
+    }
+
     private fun loadPlayer(dir: File, summary: JSONObject): StemPlayer {
         val tracks = mutableListOf(
             StemPlayer.Track("source", "Kaynak kayıt", WavFile.read(File(dir, "source.wav")), gains["source"]!!)
@@ -255,7 +346,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setBusy(b: Boolean) {
         busy = b
-        listOf(pickButton, regenButton, tempoHalfButton, tempoDoubleButton, exportButton, playButton, stopButton)
+        listOf(pickButton, regenButton, tempoHalfButton, tempoDoubleButton, exportButton, playButton, stopButton,
+            findViewById<Button>(R.id.abButton))
             .forEach { it.isEnabled = !b }
         generateButton.isEnabled = !b && sourceUri != null
         progressBar.visibility = if (b) View.VISIBLE else View.GONE

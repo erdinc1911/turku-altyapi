@@ -45,7 +45,7 @@ class _Progress:
 
 
 # çalgı başına oda yankısı oranı (ney doğal olarak odada sönerek kaybolur)
-REVERB = {"ney": 0.45, "yaylilar": 0.3, "org": 0.2, "cura": 0.18, "bendir": 0.12, "darbuka": 0.1, "bas": 0.0}
+REVERB = {"ney": 0.6, "yaylilar": 0.3, "org": 0.2, "cura": 0.18, "bendir": 0.12, "darbuka": 0.1, "bas": 0.0}
 
 
 def _path(project_dir, name):
@@ -68,11 +68,13 @@ def analyze(project_dir, progress=None):
     return an
 
 
-def _render(project_dir, an, settings, progress):
+def _render(project_dir, an, settings, progress, out_dir=None):
+    out_dir = out_dir or project_dir
+    os.makedirs(out_dir, exist_ok=True)
     t0 = time.time()
     progress(5, "Düzenleme hazırlanıyor")
     arr = arrange.arrange(an, settings)
-    with open(_path(project_dir, "arrangement.json"), "w", encoding="utf-8") as f:
+    with open(_path(out_dir, "arrangement.json"), "w", encoding="utf-8") as f:
         json.dump(arr, f)
 
     sr = int(an["sample_rate"])
@@ -92,18 +94,18 @@ def _render(project_dir, an, settings, progress):
         "yaylilar": (lambda e: synth.render_sampled(e, n, sr, tuning, "yaylilar", attack=0.35, release=0.6),
                      "Yaylılar çalınıyor"),
         "cura": (lambda e: synth.render_cura(e, n, sr, tuning, seed), "Cura çalınıyor"),
-        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.08, release=0.9),
+        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.08, release=1.8),
                 "Ney çalınıyor"),
     }
     keys = [k for k, _ in STEMS]
     for i, key in enumerate(keys):
         fn, msg = renderers[key]
-        path = _path(project_dir, key + ".wav")
+        path = _path(out_dir, key + ".wav")
         if ev.get(key):
             progress(10 + 85 * i / len(keys), msg)
             audio = fn(ev[key])
             if REVERB.get(key):
-                audio = synth.reverb(audio, sr, REVERB[key], seed=seed)
+                audio = synth.reverb(audio, sr, REVERB[key], seconds=2.6 if key == "ney" else 1.8, seed=seed)
             audio = synth.safe_peak(audio)
             wavio.write_wav(path, audio, sr)
             produced.append(key)
@@ -114,7 +116,7 @@ def _render(project_dir, an, settings, progress):
     return arr, produced, round(time.time() - t0, 2)
 
 
-def _summary(an, arr, produced, render_seconds):
+def _summary(an, arr, produced, render_seconds, prefix=""):
     names = dict(STEMS)
     tonic = arr.get("tonic_pc", an["tonic_pc"])
     return json.dumps({
@@ -130,7 +132,7 @@ def _summary(an, arr, produced, render_seconds):
         "duration": round(an["duration"], 2),
         "analysis_seconds": an.get("analysis_seconds"),
         "render_seconds": render_seconds,
-        "stems": [{"key": k, "name": names[k], "file": k + ".wav"} for k in produced],
+        "stems": [{"key": k, "name": names[k], "file": prefix + k + ".wav"} for k in produced],
     }, ensure_ascii=False)
 
 
@@ -151,3 +153,44 @@ def run_arrange(project_dir, settings_json, progress=None):
         f.write(settings_json or "{}")
     arr, produced, secs = _render(project_dir, an, settings, _Progress(progress, 0, 100))
     return _summary(an, arr, produced, secs)
+
+
+VARIANT_DIR = "b"
+
+
+def run_variant(project_dir, settings_json, progress=None):
+    """Mevcut altyapıya dokunmadan, farklı bir versiyonu (B) alt klasöre üretir."""
+    settings = json.loads(settings_json or "{}")
+    with open(_path(project_dir, "analysis.json"), encoding="utf-8") as f:
+        an = json.load(f)
+    out = _path(project_dir, VARIANT_DIR)
+    os.makedirs(out, exist_ok=True)
+    for name in os.listdir(out):
+        os.remove(os.path.join(out, name))
+    # B belirgin biçimde farklı olsun: komşu yoğunluk + farklı tohum
+    neighbor = {"sade": "dengeli", "dengeli": "zengin", "zengin": "dengeli"}
+    density = settings.get("density", "dengeli")
+    settings["density"] = neighbor.get(density, "zengin")
+    settings["seed"] = int(settings.get("seed", 1)) + 101
+    with open(_path(out, "settings_b.json"), "w", encoding="utf-8") as f:
+        json.dump(settings, f)
+    arr, produced, secs = _render(project_dir, an, settings, _Progress(progress, 0, 100), out_dir=out)
+    summary = json.loads(_summary(an, arr, produced, secs, prefix=VARIANT_DIR + "/"))
+    label = {"sade": "daha sade", "dengeli": "dengeli", "zengin": "daha zengin"}[settings["density"]]
+    summary["variant_label"] = "B: " + label
+    summary["variant_density"] = settings["density"]
+    return json.dumps(summary, ensure_ascii=False)
+
+
+def promote_variant(project_dir):
+    """B versiyonunu asıl altyapı yapar (eski A dosyaları silinir)."""
+    out = _path(project_dir, VARIANT_DIR)
+    for key, _ in STEMS:
+        old = _path(project_dir, key + ".wav")
+        if os.path.exists(old):
+            os.remove(old)
+    for name in os.listdir(out):
+        target = "settings.json" if name == "settings_b.json" else name
+        os.replace(os.path.join(out, name), _path(project_dir, target))
+    os.rmdir(out)
+    return "ok"
