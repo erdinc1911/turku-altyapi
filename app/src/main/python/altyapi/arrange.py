@@ -51,24 +51,28 @@ class BeatClock:
 
 
 # kalıplar: (vuruş içindeki konum, süre [vuruş], aralık [karar=0, beşli=7, oktav=12], hız)
+# Türküde bas seyrek çalar: ölçü başında karar sesini uzun tutar (dem),
+# yoğunluk arttıkça yalnız yarım ölçüde beşliyle destekler.
 BASS_PATTERNS = {
     2: {
         "sade": [(0.0, 2.0, 0, 0.9)],
-        "dengeli": [(0.0, 1.0, 0, 0.95), (1.0, 1.0, 7, 0.8)],
-        "zengin": [(0.0, 0.5, 0, 1.0), (0.5, 0.5, 0, 0.7), (1.0, 0.5, 7, 0.85), (1.5, 0.5, 12, 0.7)],
+        "dengeli": [(0.0, 2.0, 0, 0.95)],
+        "zengin": [(0.0, 1.0, 0, 1.0), (1.0, 1.0, 7, 0.8)],
     },
     3: {
         "sade": [(0.0, 3.0, 0, 0.9)],
-        "dengeli": [(0.0, 1.0, 0, 0.95), (1.0, 1.0, 7, 0.75), (2.0, 1.0, 7, 0.75)],
-        "zengin": [(0.0, 1.0, 0, 1.0), (1.0, 0.5, 7, 0.8), (1.5, 0.5, 12, 0.7), (2.0, 1.0, 7, 0.8)],
+        "dengeli": [(0.0, 3.0, 0, 0.95)],
+        "zengin": [(0.0, 2.0, 0, 1.0), (2.0, 1.0, 7, 0.8)],
     },
     4: {
-        "sade": [(0.0, 2.0, 0, 0.9), (2.0, 2.0, 7, 0.8)],
-        "dengeli": [(0.0, 1.5, 0, 0.95), (2.0, 1.0, 7, 0.85), (3.0, 1.0, 0, 0.75)],
-        "zengin": [(0.0, 0.5, 0, 1.0), (0.5, 0.5, 0, 0.65), (1.0, 0.5, 12, 0.75), (1.5, 0.5, 0, 0.65),
-                   (2.0, 0.5, 7, 0.9), (2.5, 0.5, 7, 0.65), (3.0, 0.5, 12, 0.75), (3.5, 0.5, 7, 0.65)],
+        "sade": [(0.0, 4.0, 0, 0.9)],
+        "dengeli": [(0.0, 2.0, 0, 0.95), (2.0, 2.0, 7, 0.8)],
+        "zengin": [(0.0, 2.0, 0, 1.0), (2.0, 1.0, 7, 0.85), (3.0, 1.0, 0, 0.75)],
     },
 }
+
+# Bas notaları arasında en az bu kadar süre olur (hızlı tempoda sıklaşmayı önler).
+BASS_MIN_GAP = 0.55
 
 # (konum, tür, hız)
 PERC_PATTERNS = {
@@ -171,7 +175,11 @@ def arrange(an, settings):
             for pos, dur, interval, v in pat:
                 t0 = clock.time(b0 + pos)
                 t1 = clock.time(b0 + pos + dur)
-                ev.append({"t": jitter(t0), "dur": max(0.05, (t1 - t0) * 0.92),
+                if ev and t0 - ev[-1]["t"] < BASS_MIN_GAP:
+                    # çok sık: yeni nota yerine öncekini uzat
+                    ev[-1]["dur"] = max(ev[-1]["dur"], (t1 - ev[-1]["t"]) * 0.95)
+                    continue
+                ev.append({"t": jitter(t0), "dur": max(0.05, (t1 - t0) * 0.95),
                            "midi": root + interval, "vel": vel(v, level)})
         # bitiş: son ölçüden sonra uzun karar sesi
         end_t = clock.time(bars[-1][-1] + 1)

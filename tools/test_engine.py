@@ -90,6 +90,13 @@ def main():
     if any(b < a for a, b in zip([p for p, _ in log], [p for p, _ in log][1:])):
         errors.append("ilerleme geri gitti")
 
+    with open(os.path.join(out, "arrangement.json")) as f:
+        bas = json.load(f)["events"]["bas"]
+    gaps = np.diff([e["t"] for e in bas])
+    print("bas: %d nota, en kısa aralık %.2f sn" % (len(bas), gaps.min()))
+    if gaps.min() < 0.5:
+        errors.append("bas notaları çok sık (%.2f sn)" % gaps.min())
+
     t1 = time.time()
     s2 = json.loads(pipeline.run_arrange(out, json.dumps({"density": "zengin", "tempo_factor": 2.0,
                                                           "instruments": ["bas", "pad"]})))
