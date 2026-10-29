@@ -195,7 +195,7 @@ def render_organ(events, n, sr, tuning, seed=1):
 
 # ---------------------------------------------------------------- cura (tel modeli)
 
-def ks_pluck(f, dur, vel, sr, rng, brightness=0.32, sustain=0.9965):
+def ks_pluck(f, dur, vel, sr, rng, brightness=0.28, sustain=0.998):
     """Karplus-Strong: blok blok vektörel hesap. Perde, sonradan ince yeniden örneklemeyle düzeltilir."""
     b = brightness
     N = max(8, int(sr / f - b))

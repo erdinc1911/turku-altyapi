@@ -161,44 +161,84 @@ def _in_spans(t, spans):
     return None
 
 
-def _cura_part(melody, spans, clock, rng):
-    """Cura ezgiyi bir oktav tizde, sekizlik mızrap vuruşlarıyla çalar."""
+# cura mızrap kalıbı: (vuruş içi konum, tel: 0 karar / 1 beşli / 2 tiz karar, hız)
+CURA_PATTERNS = {
+    2: {"sade": [(0.0, 0, 0.8), (1.0, 1, 0.6)],
+        "dengeli": [(0.0, 0, 0.85), (0.5, 2, 0.45), (1.0, 1, 0.7), (1.5, 2, 0.45)],
+        "zengin": [(0.0, 0, 0.9), (0.5, 2, 0.5), (1.0, 1, 0.75), (1.5, 2, 0.5)]},
+    3: {"sade": [(0.0, 0, 0.8)],
+        "dengeli": [(0.0, 0, 0.85), (1.0, 1, 0.6), (2.0, 1, 0.6)],
+        "zengin": [(0.0, 0, 0.9), (1.0, 1, 0.65), (1.5, 2, 0.45), (2.0, 1, 0.65), (2.5, 2, 0.45)]},
+    4: {"sade": [(0.0, 0, 0.8), (2.0, 1, 0.6)],
+        "dengeli": [(0.0, 0, 0.85), (1.0, 2, 0.5), (2.0, 1, 0.7), (3.0, 2, 0.5)],
+        "zengin": [(0.0, 0, 0.9), (0.5, 2, 0.45), (1.0, 2, 0.55), (2.0, 1, 0.75), (2.5, 2, 0.45),
+                   (3.0, 2, 0.55)]},
+}
+
+
+def _cura_part(tonic, bars, levels, active, bpb, density, clock, rng):
+    """Cura ikinci saz gibi çalar: karar ve beşli üzerinde usule göre ritmik mızrap (dem).
+    Ezgiyi takip etmez; böylece analiz hatalarından etkilenmez ve hep makama uygundur."""
+    root = 64 + (tonic - 64) % 12  # Mi4 .. Re#5 arası
+    strings = [root, root + 7 if root + 7 <= 79 else root - 5, root + 12]
     ev = []
-    prev = 69
-    eighth = clock.period / 2
-    for t, d, m in melody:
-        span = _in_spans(t, spans)
-        if span is None or d < 0.06:
+    for bar, level, on in zip(bars, levels, active):
+        if not on:
             continue
-        note = _fold(m, prev, 57, 81)
-        prev = note
-        end = min(t + d, span[1])
-        k, strike = 0, t
-        while strike < end - 0.03:
-            nxt = min(end, strike + eighth)
-            ev.append({"t": strike + 0.012 + rng.normal(0, 0.004), "dur": nxt - strike,
-                       "midi": note, "vel": (0.85 if k % 2 == 0 else 0.6) * rng.uniform(0.9, 1.05)})
-            strike, k = nxt, k + 1
+        style = LEVEL_PATTERN[density][level]
+        pat = CURA_PATTERNS[bpb][style]
+        b0 = bar[0]
+        for i, (pos, string, v) in enumerate(pat):
+            t0 = clock.time(b0 + pos)
+            nxt = pat[i + 1][0] if i + 1 < len(pat) else bpb
+            t1 = clock.time(b0 + nxt)
+            ev.append({"t": t0 + rng.normal(0, 0.005), "dur": max(0.08, t1 - t0),
+                       "midi": strings[string], "vel": v * rng.uniform(0.9, 1.05)})
     return ev
 
 
-def _ney_part(melody, spans, rng):
-    """Ney ezgiyi legato çalar; çok kısa süslemeleri atlar."""
-    ev = []
-    prev = 74
+def _smooth_melody(melody, min_dur):
+    """Çok kısa notaları (süsleme / geçiş / analiz hatası) bir önceki notaya katar."""
+    out = []
     for t, d, m in melody:
-        span = _in_spans(t, spans)
-        if span is None or d < 0.09:
+        if out and (d < min_dur or m == out[-1][2]) and t - (out[-1][0] + out[-1][1]) < 0.12:
+            out[-1][1] = t + d - out[-1][0]
             continue
-        note = _fold(m, prev, 62, 86)
+        if d < min_dur:
+            continue
+        out.append([t, d, m])
+    return out
+
+
+def _ney_octave(m, prev, lo=69, hi=88, center=78):
+    """Neyi tiz ve sabit bir bölgede tutar: merkeze ve önceki notaya yakın oktav."""
+    cands = [x for x in range(lo, hi + 1) if x % 12 == m % 12]
+    return min(cands, key=lambda x: abs(x - prev) + 0.6 * abs(x - center))
+
+
+def _ney_part(melody, spans, rng):
+    """Ney ezgiyi uzun ve bağlı (legato) çalar; kısa süslemeleri atlar."""
+    ev = []
+    prev = 78
+    for t, d, m in _smooth_melody(melody, 0.16):
+        span = _in_spans(t, spans)
+        if span is None:
+            continue
+        note = _ney_octave(m, prev)
         prev = note
         dur = min(d, span[1] - t)
-        if ev and ev[-1]["midi"] == note and t - (ev[-1]["t"] + ev[-1]["dur"]) < 0.08:
-            ev[-1]["dur"] = t + dur - ev[-1]["t"]
-            continue
-        if ev and 0 < t - (ev[-1]["t"] + ev[-1]["dur"]) < 0.15:
-            ev[-1]["dur"] = t - ev[-1]["t"] - 0.01  # legato: boşluğu kapat
-        ev.append({"t": t + 0.015, "dur": dur, "midi": note, "vel": 0.7 * rng.uniform(0.9, 1.05)})
+        if ev:
+            gap = t - (ev[-1]["t"] + ev[-1]["dur"])
+            if ev[-1]["midi"] == note and gap < 0.25:
+                ev[-1]["dur"] = t + dur - ev[-1]["t"]
+                continue
+            if 0 < gap < 0.45:
+                ev[-1]["dur"] = t - ev[-1]["t"] + 0.03  # legato: boşluğu kapat, hafif üst üste bin
+        ev.append({"t": t + 0.015, "dur": dur, "midi": note, "vel": 0.7 * rng.uniform(0.92, 1.04)})
+    # cümle sonlarında sesi biraz uzat (nefes bitene kadar)
+    for i, e in enumerate(ev):
+        nxt = ev[i + 1]["t"] if i + 1 < len(ev) else e["t"] + e["dur"] + 0.6
+        e["dur"] = max(e["dur"], min(nxt - e["t"] + 0.03, e["dur"] + 0.4))
     return ev
 
 
@@ -299,22 +339,23 @@ def arrange(an, settings):
 
     melody = an.get("melody") or []
     has_cura, has_ney = "cura" in instruments, "ney" in instruments
-    if melody and (has_cura or has_ney):
-        cura_bars, ney_bars = [], []
+    if has_cura or has_ney:
+        cura_on, ney_spans = [], []
         for bar, level in zip(bars, levels):
-            if level < min_level:
-                continue
-            span = (clock.time(bar[0]), clock.time(bar[-1] + 1))
+            eligible = level >= min_level
             if has_cura and has_ney:
-                (cura_bars if level == 2 else ney_bars).append(span)
-            elif has_cura:
-                cura_bars.append(span)
+                # yoğun bölümlerde cura ritim tutar, sakin bölümlerde ney ezgiye eşlik eder
+                cura_on.append(eligible and level == 2)
+                if eligible and level < 2:
+                    ney_spans.append((clock.time(bar[0]), clock.time(bar[-1] + 1)))
             else:
-                ney_bars.append(span)
+                cura_on.append(eligible)
+                if eligible:
+                    ney_spans.append((clock.time(bar[0]), clock.time(bar[-1] + 1)))
         if has_cura:
-            events["cura"] = _cura_part(melody, cura_bars, clock, rng)
-        if has_ney:
-            events["ney"] = _ney_part(melody, ney_bars, rng)
+            events["cura"] = _cura_part(tonic, bars, levels, cura_on, bpb, density, clock, rng)
+        if has_ney and melody:
+            events["ney"] = _ney_part(melody, ney_spans, rng)
 
     return {
         "events": events,

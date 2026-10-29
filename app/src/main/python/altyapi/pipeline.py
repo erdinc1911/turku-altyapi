@@ -88,7 +88,7 @@ def _render(project_dir, an, settings, progress):
         "yaylilar": (lambda e: synth.render_sampled(e, n, sr, tuning, "yaylilar", attack=0.35, release=0.6),
                      "Yaylılar çalınıyor"),
         "cura": (lambda e: synth.render_cura(e, n, sr, tuning, seed), "Cura çalınıyor"),
-        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.06, release=0.15),
+        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.08, release=0.45),
                 "Ney çalınıyor"),
     }
     keys = [k for k, _ in STEMS]
