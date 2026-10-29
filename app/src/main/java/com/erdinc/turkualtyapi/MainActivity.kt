@@ -72,7 +72,7 @@ class MainActivity : AppCompatActivity() {
     // Başlangıç ses seviyeleri: altyapı kaynağın yaklaşık 8-10 dB altında, sazı bastırmadan.
     private val gains = mutableMapOf(
         "source" to 1.0f, "bas" to 0.9f, "bendir" to 1.0f, "darbuka" to 0.8f,
-        "org" to 0.7f, "yaylilar" to 0.4f, "cura" to 0.55f, "ney" to 0.6f
+        "org" to 0.7f, "yaylilar" to 0.4f, "cura" to 0.55f, "ney" to 0.45f
     )
     private val mutes = mutableMapOf<String, Boolean>()
 

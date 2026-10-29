@@ -355,6 +355,14 @@ def _cura_part(tonic, bars, levels, active, bpb, density, clock, rng):
     return ev
 
 
+def _ney_phrase(bar_index, density):
+    """Ney her yerde çalmaz: 4 ölçülük cümlelerden yalnız bazılarında girer, gerisinde susar."""
+    phrase = bar_index // 4
+    if density == "sade":
+        return phrase % 3 == 1  # her 3 cümleden birinde
+    return phrase % 2 == 1      # cümle aşırı: bir çalar, bir susar
+
+
 def _smooth_melody(melody, min_dur):
     """Çok kısa notaları (süsleme / geçiş / analiz hatası) bir önceki notaya katar."""
     out = []
@@ -379,7 +387,7 @@ def _ney_part(melody, spans, rng):
     """Ney ezgiyi uzun ve bağlı (legato) çalar; kısa süslemeleri atlar."""
     ev = []
     prev = 78
-    for t, d, m in _smooth_melody(melody, 0.10):
+    for t, d, m in _smooth_melody(melody, 0.2):
         span = _in_spans(t, spans)
         if span is None:
             continue
@@ -397,7 +405,7 @@ def _ney_part(melody, spans, rng):
     # cümle sonlarında sesi biraz uzat (nefes bitene kadar)
     for i, e in enumerate(ev):
         nxt = ev[i + 1]["t"] if i + 1 < len(ev) else e["t"] + e["dur"] + 0.6
-        e["dur"] = max(e["dur"], min(nxt - e["t"] + 0.05, e["dur"] + 0.8))
+        e["dur"] = max(e["dur"], min(nxt - e["t"] + 0.05, e["dur"] + 0.5))
     return ev
 
 
@@ -494,18 +502,11 @@ def arrange(an, settings):
     has_cura, has_ney = "cura" in instruments, "ney" in instruments
     if has_cura or has_ney:
         cura_on, ney_spans = [], []
-        for bar, level in zip(bars, levels):
+        for k, (bar, level) in enumerate(zip(bars, levels)):
             eligible = level >= min_level
-            if has_cura and has_ney:
-                # yoğun bölümlerde cura ritim tutar, sakin bölümlerde ney ezgiye eşlik eder
-                # cura ritim tuttuğu için ney ile çakışmaz: cura yoğun bölümlerde, ney her yerde
-                cura_on.append(eligible and level == 2)
-                if eligible:
-                    ney_spans.append((clock.time(bar[0]), clock.time(bar[-1] + 1)))
-            else:
-                cura_on.append(eligible)
-                if eligible:
-                    ney_spans.append((clock.time(bar[0]), clock.time(bar[-1] + 1)))
+            cura_on.append(eligible and (level == 2 or not has_ney))
+            if eligible and _ney_phrase(k, density):
+                ney_spans.append((clock.time(bar[0]), clock.time(bar[-1] + 1)))
         if has_cura:
             events["cura"] = _cura_part(tonic, bars, levels, cura_on, bpb, density, clock, rng)
         if has_ney and melody:

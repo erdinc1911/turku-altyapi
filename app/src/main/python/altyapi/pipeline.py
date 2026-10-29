@@ -45,7 +45,7 @@ class _Progress:
 
 
 # çalgı başına oda yankısı oranı (ney doğal olarak odada sönerek kaybolur)
-REVERB = {"ney": 0.6, "yaylilar": 0.3, "org": 0.2, "cura": 0.18, "bendir": 0.12, "darbuka": 0.1, "bas": 0.0}
+REVERB = {"ney": 0.4, "yaylilar": 0.3, "org": 0.2, "cura": 0.18, "bendir": 0.12, "darbuka": 0.1, "bas": 0.0}
 
 
 def _path(project_dir, name):
@@ -94,7 +94,7 @@ def _render(project_dir, an, settings, progress, out_dir=None):
         "yaylilar": (lambda e: synth.render_sampled(e, n, sr, tuning, "yaylilar", attack=0.35, release=0.6),
                      "Yaylılar çalınıyor"),
         "cura": (lambda e: synth.render_cura(e, n, sr, tuning, seed), "Cura çalınıyor"),
-        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.08, release=1.8),
+        "ney": (lambda e: synth.render_sampled(e, n, sr, tuning, "ney", attack=0.08, release=1.2),
                 "Ney çalınıyor"),
     }
     keys = [k for k, _ in STEMS]
@@ -105,7 +105,7 @@ def _render(project_dir, an, settings, progress, out_dir=None):
             progress(10 + 85 * i / len(keys), msg)
             audio = fn(ev[key])
             if REVERB.get(key):
-                audio = synth.reverb(audio, sr, REVERB[key], seconds=2.6 if key == "ney" else 1.8, seed=seed)
+                audio = synth.reverb(audio, sr, REVERB[key], seconds=2.2 if key == "ney" else 1.8, seed=seed)
             audio = synth.safe_peak(audio)
             wavio.write_wav(path, audio, sr)
             produced.append(key)
